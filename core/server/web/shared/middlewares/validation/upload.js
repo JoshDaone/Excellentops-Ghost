@@ -17,7 +17,7 @@ module.exports = function upload(options) {
 
         // Check if a file was provided
         if (!localUtils.checkFileExists(req.file)) {
-            return next(new common.errors.ValidationError({
+            return next(new common.errors.NoPermissionError({
                 message: common.i18n.t(`errors.api.${type}.missingFile`)
             }));
         }

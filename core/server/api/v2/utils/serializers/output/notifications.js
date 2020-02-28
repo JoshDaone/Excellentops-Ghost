@@ -16,7 +16,6 @@ module.exports = {
 
         response.forEach((notification) => {
             delete notification.seen;
-            delete notification.seenBy;
             delete notification.addedAt;
         });
 

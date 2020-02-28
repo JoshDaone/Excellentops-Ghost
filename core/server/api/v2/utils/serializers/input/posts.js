@@ -1,8 +1,8 @@
 const _ = require('lodash');
 const debug = require('ghost-ignition').debug('api:v2:utils:serializers:input:posts');
 const url = require('./utils/url');
-const localUtils = require('../../index');
-const converters = require('../../../../../lib/mobiledoc/converters');
+const utils = require('../../index');
+const labs = require('../../../../../services/labs');
 
 function removeMobiledocFormat(frame) {
     if (frame.options.formats && frame.options.formats.includes('mobiledoc')) {
@@ -12,86 +12,46 @@ function removeMobiledocFormat(frame) {
     }
 }
 
-function defaultRelations(frame) {
-    if (frame.options.withRelated) {
-        return;
-    }
-
-    if (frame.options.columns && !frame.options.withRelated) {
-        return false;
-    }
-
-    frame.options.withRelated = ['tags', 'authors', 'authors.roles'];
-}
-
-function setDefaultOrder(frame) {
-    let includesOrderedRelations = false;
-
-    if (frame.options.withRelated) {
-        const orderedRelations = ['author', 'authors', 'tag', 'tags'];
-        includesOrderedRelations = _.intersection(orderedRelations, frame.options.withRelated).length > 0;
-    }
-
-    if (!frame.options.order && !includesOrderedRelations) {
-        frame.options.order = 'published_at desc';
+function includeTags(frame) {
+    if (!frame.options.withRelated) {
+        frame.options.withRelated = ['tags'];
+    } else if (!frame.options.withRelated.includes('tags')) {
+        frame.options.withRelated.push('tags');
     }
 }
-
-function defaultFormat(frame) {
-    if (frame.options.formats) {
-        return;
-    }
-
-    frame.options.formats = 'mobiledoc';
-}
-
-/**
- * CASE:
- *
- * - posts endpoint only returns posts, not pages
- * - we have to enforce the filter
- *
- * @TODO: https://github.com/TryGhost/Ghost/issues/10268
- */
-const forcePageFilter = (frame) => {
-    if (frame.options.filter) {
-        frame.options.filter = `(${frame.options.filter})+page:false`;
-    } else {
-        frame.options.filter = 'page:false';
-    }
-};
-
-const forceStatusFilter = (frame) => {
-    if (!frame.options.filter) {
-        frame.options.filter = 'status:[draft,published,scheduled]';
-    } else if (!frame.options.filter.match(/status:/)) {
-        frame.options.filter = `(${frame.options.filter})+status:[draft,published,scheduled]`;
-    }
-};
 
 module.exports = {
     browse(apiConfig, frame) {
         debug('browse');
 
-        forcePageFilter(frame);
-
+        // @TODO: `api_key_id` does not work long term, because it can be either a content or an admin api key?
         /**
          * ## current cases:
          * - context object is empty (functional call, content api access)
-         * - api_key.type == 'content' ? content api access
+         * - api_key_id exists? content api access
          * - user exists? admin api access
          */
-        if (localUtils.isContentAPI(frame)) {
+        if (utils.isContentAPI(frame)) {
+            // CASE: the content api endpoints for posts should only return non page type resources
+            if (frame.options.filter) {
+                if (frame.options.filter.match(/page:\w+\+?/)) {
+                    frame.options.filter = frame.options.filter.replace(/page:\w+\+?/, '');
+                }
+
+                if (frame.options.filter) {
+                    frame.options.filter = frame.options.filter + '+page:false';
+                } else {
+                    frame.options.filter = 'page:false';
+                }
+            } else {
+                frame.options.filter = 'page:false';
+            }
             // CASE: the content api endpoint for posts should not return mobiledoc
             removeMobiledocFormat(frame);
-
-            setDefaultOrder(frame);
-        }
-
-        if (!localUtils.isContentAPI(frame)) {
-            forceStatusFilter(frame);
-            defaultFormat(frame);
-            defaultRelations(frame);
+            if (labs.isSet('members')) {
+                // CASE: Members needs to have the tags to check if its allowed access
+                includeTags(frame);
+            }
         }
 
         debug(frame.options);
@@ -100,87 +60,85 @@ module.exports = {
     read(apiConfig, frame) {
         debug('read');
 
-        forcePageFilter(frame);
-
+        // @TODO: `api_key_id` does not work long term, because it can be either a content or an admin api key?
         /**
          * ## current cases:
          * - context object is empty (functional call, content api access)
-         * - api_key.type == 'content' ? content api access
+         * - api_key_id exists? content api access
          * - user exists? admin api access
          */
-        if (localUtils.isContentAPI(frame)) {
+        if (utils.isContentAPI(frame)) {
+            frame.data.page = false;
             // CASE: the content api endpoint for posts should not return mobiledoc
             removeMobiledocFormat(frame);
-
-            setDefaultOrder(frame);
-        }
-
-        if (!localUtils.isContentAPI(frame)) {
-            forceStatusFilter(frame);
-            defaultFormat(frame);
-            defaultRelations(frame);
+            if (labs.isSet('members')) {
+                // CASE: Members needs to have the tags to check if its allowed access
+                includeTags(frame);
+            }
         }
 
         debug(frame.options);
     },
 
-    add(apiConfig, frame, options = {add: true}) {
+    add(apiConfig, frame) {
         debug('add');
+        /**
+         * Convert author property to author_id to match the name in the database.
+         *
+         * @deprecated: `author`, might be removed in Ghost 3.0
+         */
+        if (frame.data.posts[0].hasOwnProperty('author')) {
+            frame.data.posts[0].author_id = frame.data.posts[0].author;
+            delete frame.data.posts[0].author;
+        }
 
-        if (_.get(frame,'options.source')) {
-            const html = frame.data.posts[0].html;
+        /**
+         * CASE: we don't support updating nested-nested relations e.g. `post.authors[*].roles` yet.
+         *
+         * Bookshelf-relations supports this feature, BUT bookshelf's `hasChanged` fn will currently
+         * clash with this, because `hasChanged` won't be able to tell if relations have changed or not.
+         * It would always return `changed.roles = [....]`. It would always throw a model event that relations
+         * were updated, which is not true.
+         *
+         * Bookshelf-relations can tell us if a relation has changed, it knows that.
+         * But the connection between our model layer, Bookshelf's `hasChanged` fn and Bookshelf-relations
+         * is not present. As long as we don't support this case, we have to ignore this.
+         */
+        if (frame.data.posts[0].authors && frame.data.posts[0].authors.length) {
+            _.each(frame.data.posts[0].authors, (author, index) => {
+                if (author.hasOwnProperty('roles')) {
+                    delete frame.data.posts[0].authors[index].roles;
+                }
 
-            if (frame.options.source === 'html' && !_.isEmpty(html)) {
-                frame.data.posts[0].mobiledoc = JSON.stringify(converters.htmlToMobiledocConverter(html));
+                if (author.hasOwnProperty('permissions')) {
+                    delete frame.data.posts[0].authors[index].permissions;
+                }
+            });
+        }
+
+        /**
+         * Model notation is: `tag.parent_id`.
+         * The API notation is `tag.parent`.
+         */
+        if (frame.data.posts[0].hasOwnProperty('tags')) {
+            if (_.isArray(frame.data.posts[0].tags) && frame.data.posts[0].tags.length) {
+                _.each(frame.data.posts[0].tags, (tag, index) => {
+                    if (tag.hasOwnProperty('parent')) {
+                        frame.data.posts[0].tags[index].parent_id = tag.parent;
+                        delete frame.data.posts[0].tags[index].parent;
+                    }
+
+                    if (tag.hasOwnProperty('posts')) {
+                        delete frame.data.posts[0].tags[index].posts;
+                    }
+                });
             }
         }
 
         frame.data.posts[0] = url.forPost(Object.assign({}, frame.data.posts[0]), frame.options);
-
-        // @NOTE: force adding post
-        if (options.add) {
-            frame.data.posts[0].page = false;
-        }
-
-        // CASE: Transform short to long format
-        if (frame.data.posts[0].authors) {
-            frame.data.posts[0].authors.forEach((author, index) => {
-                if (_.isString(author)) {
-                    frame.data.posts[0].authors[index] = {
-                        email: author
-                    };
-                }
-            });
-        }
-
-        if (frame.data.posts[0].tags) {
-            frame.data.posts[0].tags.forEach((tag, index) => {
-                if (_.isString(tag)) {
-                    frame.data.posts[0].tags[index] = {
-                        name: tag
-                    };
-                }
-            });
-        }
-
-        defaultFormat(frame);
-        defaultRelations(frame);
     },
 
     edit(apiConfig, frame) {
-        this.add(apiConfig, frame, {add: false});
-
-        forceStatusFilter(frame);
-        forcePageFilter(frame);
-    },
-
-    destroy(apiConfig, frame) {
-        frame.options.destroyBy = {
-            id: frame.options.id,
-            page: false
-        };
-
-        defaultFormat(frame);
-        defaultRelations(frame);
+        this.add(apiConfig, frame);
     }
 };

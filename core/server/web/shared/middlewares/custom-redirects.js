@@ -5,7 +5,7 @@ const path = require('path');
 const debug = require('ghost-ignition').debug('web:shared:mw:custom-redirects');
 const config = require('../../../config');
 const common = require('../../../lib/common');
-const redirectsService = require('../../../../frontend/services/redirects');
+const validation = require('../../../data/validation');
 
 const _private = {};
 
@@ -19,7 +19,7 @@ _private.registerRoutes = () => {
     try {
         let redirects = fs.readFileSync(path.join(config.getContentPath('data'), 'redirects.json'), 'utf-8');
         redirects = JSON.parse(redirects);
-        redirectsService.validation.validate(redirects);
+        validation.validateRedirects(redirects);
 
         redirects.forEach((redirect) => {
             /**
@@ -49,20 +49,17 @@ _private.registerRoutes = () => {
 
             debug('register', redirect.from);
             customRedirectsRouter.get(new RegExp(redirect.from, options), function (req, res) {
-                const maxAge = redirect.permanent ? config.get('caching:customRedirects:maxAge') : 0;
-                const fromURL = url.parse(req.originalUrl);
-                const toURL = url.parse(redirect.to);
-
-                toURL.pathname = (toURL.hostname)
-                    ? toURL.pathname
-                    : fromURL.pathname.replace(new RegExp(redirect.from, options), toURL.pathname);
-                toURL.search = fromURL.search;
+                const maxAge = redirect.permanent ? config.get('caching:customRedirects:maxAge') : 0,
+                    parsedUrl = url.parse(req.originalUrl);
 
                 res.set({
                     'Cache-Control': `public, max-age=${maxAge}`
                 });
 
-                res.redirect(redirect.permanent ? 301 : 302, url.format(toURL));
+                res.redirect(redirect.permanent ? 301 : 302, url.format({
+                    pathname: parsedUrl.pathname.replace(new RegExp(redirect.from, options), redirect.to),
+                    search: parsedUrl.search
+                }));
             });
         });
     } catch (err) {
@@ -72,7 +69,7 @@ _private.registerRoutes = () => {
             common.logging.error(new common.errors.IncorrectUsageError({
                 message: common.i18n.t('errors.middleware.redirects.register'),
                 context: err.message,
-                help: 'https://ghost.org/docs/api/handlebars-themes/routing/redirects/'
+                help: 'https://docs.ghost.org/docs/redirects'
             }));
         }
     }
@@ -82,7 +79,7 @@ _private.registerRoutes = () => {
 
 /**
  * - you can extend Ghost with a custom redirects file
- * - see https://github.com/TryGhost/Ghost/issues/7707 and https://ghost.org/docs/api/handlebars-themes/routing/redirects/
+ * - see https://github.com/TryGhost/Ghost/issues/7707 and https://docs.ghost.org/docs/redirects
  * - file loads synchronously, because we need to register the routes before anything else
  */
 exports.use = function use(siteApp) {

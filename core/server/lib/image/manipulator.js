@@ -8,43 +8,11 @@ const fs = require('fs-extra');
  * We currently can't enable compression or having more config options, because of
  * https://github.com/lovell/sharp/issues/1360.
  */
+const process = (options = {}) => {
+    let sharp, img, originalData, originalSize;
 
-const unsafeProcess = (options = {}) => {
-    return fs.readFile(options.in)
-        .then((data) => {
-            return unsafeResizeImage(data, {
-                width: options.width
-            });
-        })
-        .then((data) => {
-            return fs.writeFile(options.out, data);
-        });
-};
-
-const unsafeResizeImage = (originalBuffer, {width, height} = {}) => {
-    const sharp = require('sharp');
-    return sharp(originalBuffer)
-        .resize(width, height, {
-            // CASE: dont make the image bigger than it was
-            withoutEnlargement: true
-        })
-        // CASE: Automatically remove metadata and rotate based on the orientation.
-        .rotate()
-        .toBuffer()
-        .then((resizedBuffer) => {
-            return resizedBuffer.length < originalBuffer.length ? resizedBuffer : originalBuffer;
-        });
-};
-
-// NOTE: .gif optimization is currently not supported by sharp but will be soon
-//       as there has been support added in underlying libvips library https://github.com/lovell/sharp/issues/1372
-//       As for .svg files, sharp only supports conversion to png, and this does not
-//       play well with animated svg files
-const canTransformFileExtension = ext => !['.gif', '.svg', '.svgz', '.ico'].includes(ext);
-
-const makeSafe = fn => (...args) => {
     try {
-        require('sharp');
+        sharp = require('sharp');
     } catch (err) {
         return Promise.reject(new common.errors.InternalServerError({
             message: 'Sharp wasn\'t installed',
@@ -52,15 +20,45 @@ const makeSafe = fn => (...args) => {
             err: err
         }));
     }
-    return fn(...args).catch((err) => {
-        throw new common.errors.InternalServerError({
-            message: 'Unable to manipulate image.',
-            err: err,
-            code: 'IMAGE_PROCESSING'
+
+    // @NOTE: workaround for Windows as libvips keeps a reference to the input file
+    //        which makes it impossible to fs.unlink() it on cleanup stage
+    sharp.cache(false);
+
+    return fs.readFile(options.in)
+        .then((data) => {
+            originalData = data;
+
+            // @NOTE: have to use constructor with Buffer for sharp to be able to expose size property
+            img = sharp(data);
+        })
+        .then(() => img.metadata())
+        .then((metadata) => {
+            originalSize = metadata.size;
+
+            if (metadata.width > options.width) {
+                img.resize(options.width);
+            }
+
+            // CASE: if you call `rotate` it will automatically remove the orientation (and all other meta data) and rotates
+            //       based on the orientation. It does not rotate if no orientation is set.
+            img.rotate();
+            return img.toBuffer({resolveWithObject: true});
+        })
+        .then(({data, info}) => {
+            if (info.size > originalSize) {
+                return fs.writeFile(options.out, originalData);
+            } else {
+                return fs.writeFile(options.out, data);
+            }
+        })
+        .catch((err) => {
+            throw new common.errors.InternalServerError({
+                message: 'Unable to manipulate image.',
+                err: err,
+                code: 'IMAGE_PROCESSING'
+            });
         });
-    });
 };
 
-module.exports.canTransformFileExtension = canTransformFileExtension;
-module.exports.process = makeSafe(unsafeProcess);
-module.exports.resizeImage = makeSafe(unsafeResizeImage);
+module.exports.process = process;

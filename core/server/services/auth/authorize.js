@@ -1,4 +1,5 @@
 const labs = require('../labs');
+const session = require('./session');
 const common = require('../../lib/common');
 
 const authorize = {
@@ -8,9 +9,7 @@ const authorize = {
         if (req.user && req.user.id) {
             return next();
         } else {
-            return next(new common.errors.NoPermissionError({
-                message: common.i18n.t('errors.middleware.auth.pleaseSignIn')
-            }));
+            return next(new common.errors.NoPermissionError({message: common.i18n.t('errors.middleware.auth.pleaseSignIn')}));
         }
     },
 
@@ -22,18 +21,7 @@ const authorize = {
             if (req.user && req.user.id) {
                 return next();
             } else {
-                // CASE: has no user access and public api is disabled
-                if (labs.isSet('publicAPI') !== true) {
-                    return next(new common.errors.NoPermissionError({
-                        message: common.i18n.t('errors.middleware.auth.publicAPIDisabled.error'),
-                        context: common.i18n.t('errors.middleware.auth.publicAPIDisabled.context'),
-                        help: common.i18n.t('errors.middleware.auth.forInformationRead', {url: 'https://ghost.org/docs/api/content/'})
-                    }));
-                }
-
-                return next(new common.errors.NoPermissionError({
-                    message: common.i18n.t('errors.middleware.auth.pleaseSignIn')
-                }));
+                return next(new common.errors.NoPermissionError({message: common.i18n.t('errors.middleware.auth.pleaseSignIn')}));
             }
         }
     },
@@ -42,15 +30,14 @@ const authorize = {
     requiresAuthorizedClient: function requiresAuthorizedClient(client) {
         return function doAuthorizedClient(req, res, next) {
             if (client && (!req.client || !req.client.name || req.client.name !== client)) {
-                return next(new common.errors.NoPermissionError({
-                    message: common.i18n.t('errors.permissions.noPermissionToAction')
-                }));
+                return next(new common.errors.NoPermissionError({message: common.i18n.t('errors.permissions.noPermissionToAction')}));
             }
 
             return next();
         };
     },
 
+    authorizeAdminAPI: [session.ensureUser],
     authorizeContentApi(req, res, next) {
         const hasApiKey = req.api_key && req.api_key.id;
         const hasMember = req.member;
@@ -60,23 +47,16 @@ const authorize = {
         if (labs.isSet('members') && hasMember) {
             return next();
         }
-        return next(new common.errors.NoPermissionError({
-            message: common.i18n.t('errors.middleware.auth.authorizationFailed'),
-            context: common.i18n.t('errors.middleware.auth.missingContentMemberOrIntegration')
-        }));
+        return next(new common.errors.NoPermissionError({message: common.i18n.t('errors.middleware.auth.pleaseSignInOrAuthenticate')}));
     },
 
-    authorizeAdminApi(req, res, next) {
+    requiresAuthorizedUserOrApiKey(req, res, next) {
         const hasUser = req.user && req.user.id;
         const hasApiKey = req.api_key && req.api_key.id;
-
         if (hasUser || hasApiKey) {
             return next();
         } else {
-            return next(new common.errors.NoPermissionError({
-                message: common.i18n.t('errors.middleware.auth.authorizationFailed'),
-                context: common.i18n.t('errors.middleware.auth.missingAdminUserOrIntegration')
-            }));
+            return next(new common.errors.NoPermissionError({message: common.i18n.t('errors.middleware.auth.pleaseSignInOrAuthenticate')}));
         }
     }
 };

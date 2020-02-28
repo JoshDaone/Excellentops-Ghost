@@ -9,7 +9,7 @@ const serveStatic = require('express').static,
     config = require('../../config'),
     common = require('../../lib/common'),
     constants = require('../../lib/constants'),
-    urlUtils = require('../../lib/url-utils'),
+    urlService = require('../../services/url'),
     StorageBase = require('ghost-storage-base');
 
 class LocalFileStore extends StorageBase {
@@ -17,31 +17,6 @@ class LocalFileStore extends StorageBase {
         super();
 
         this.storagePath = config.getContentPath('images');
-    }
-
-    /**
-     * Saves a buffer in the targetPath
-     * - buffer is an instance of Buffer
-     * - returns a Promise which returns the full URL to retrieve the data
-     */
-    saveRaw(buffer, targetPath) {
-        const storagePath = path.join(this.storagePath, targetPath);
-        const targetDir = path.dirname(storagePath);
-
-        return fs.mkdirs(targetDir)
-            .then(() => {
-                return fs.writeFile(storagePath, buffer);
-            })
-            .then(() => {
-                // For local file system storage can use relative path so add a slash
-                const fullUrl = (
-                    urlUtils.urlJoin('/', urlUtils.getSubdir(),
-                        urlUtils.STATIC_IMAGE_URL_PREFIX,
-                        targetPath)
-                ).replace(new RegExp(`\\${path.sep}`, 'g'), '/');
-
-                return fullUrl;
-            });
     }
 
     /**
@@ -68,8 +43,8 @@ class LocalFileStore extends StorageBase {
             // The src for the image must be in URI format, not a file system path, which in Windows uses \
             // For local file system storage can use relative path so add a slash
             const fullUrl = (
-                urlUtils.urlJoin('/', urlUtils.getSubdir(),
-                    urlUtils.STATIC_IMAGE_URL_PREFIX,
+                urlService.utils.urlJoin('/', urlService.utils.getSubdir(),
+                    urlService.utils.STATIC_IMAGE_URL_PREFIX,
                     path.relative(this.storagePath, targetFilename))
             ).replace(new RegExp(`\\${path.sep}`, 'g'), '/');
 
@@ -121,14 +96,6 @@ class LocalFileStore extends StorageBase {
                             code: 'STATIC_FILE_NOT_FOUND',
                             property: err.path
                         }));
-                    }
-
-                    if (err.statusCode === 400) {
-                        return next(new common.errors.BadRequestError({err: err}));
-                    }
-
-                    if (err.statusCode === 403) {
-                        return next(new common.errors.NoPermissionError({err: err}));
                     }
 
                     return next(new common.errors.GhostError({err: err}));

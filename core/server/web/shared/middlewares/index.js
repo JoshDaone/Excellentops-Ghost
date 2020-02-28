@@ -19,10 +19,6 @@ module.exports = {
         return require('./brute');
     },
 
-    get upload() {
-        return require('./upload');
-    },
-
     get cacheControl() {
         return require('./cache-control');
     },
@@ -57,10 +53,6 @@ module.exports = {
 
     get prettyUrls() {
         return require('./pretty-urls');
-    },
-
-    get requestId() {
-        return require('./request-id');
     },
 
     get serveFavicon() {

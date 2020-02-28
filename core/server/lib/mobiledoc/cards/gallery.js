@@ -1,3 +1,5 @@
+const MAX_IMG_PER_ROW = 3;
+
 /**
  * <figure class="kg-gallery-card kg-width-wide">
  *   <div class="kg-gallery-container>
@@ -15,11 +17,7 @@
  * </figure>
  */
 
-const createCard = require('../create-card');
-
-const MAX_IMG_PER_ROW = 3;
-
-module.exports = createCard({
+module.exports = {
     name: 'gallery',
     type: 'dom',
     render(opts) {
@@ -104,35 +102,8 @@ module.exports = createCard({
             let figcaption = dom.createElement('figcaption');
             figcaption.appendChild(dom.createRawHTMLSection(payload.caption));
             figure.appendChild(figcaption);
-            figure.setAttribute('class', `${figure.getAttribute('class')} kg-card-hascaption`);
         }
 
         return figure;
-    },
-
-    absoluteToRelative(urlUtils, payload, options) {
-        if (payload.images) {
-            payload.images.forEach((image) => {
-                image.src = image.src && urlUtils.absoluteToRelative(image.src, options);
-                image.caption = image.caption && urlUtils.htmlAbsoluteToRelative(image.caption, options);
-            });
-        }
-
-        payload.caption = payload.caption && urlUtils.htmlAbsoluteToRelative(payload.caption, options);
-
-        return payload;
-    },
-
-    relativeToAbsolute(urlUtils, payload, options) {
-        if (payload.images) {
-            payload.images.forEach((image) => {
-                image.src = image.src && urlUtils.relativeToAbsolute(image.src, options);
-                image.caption = image.caption && urlUtils.htmlRelativeToAbsolute(image.caption, options);
-            });
-        }
-
-        payload.caption = payload.caption && urlUtils.htmlRelativeToAbsolute(payload.caption, options);
-
-        return payload;
     }
-});
+};

@@ -1,12 +1,11 @@
 const debug = require('ghost-ignition').debug('api:v2:utils:serializers:output:integrations');
-const mapper = require('./utils/mapper');
 
 module.exports = {
     browse({data, meta}, apiConfig, frame) {
         debug('browse');
 
         frame.response = {
-            integrations: data.map(model => mapper.mapIntegration(model, frame)),
+            integrations: data.map(model => model.toJSON(frame.options)),
             meta
         };
     },
@@ -14,21 +13,21 @@ module.exports = {
         debug('read');
 
         frame.response = {
-            integrations: [mapper.mapIntegration(model, frame)]
+            integrations: [model.toJSON(frame.options)]
         };
     },
     add(model, apiConfig, frame) {
         debug('add');
 
         frame.response = {
-            integrations: [mapper.mapIntegration(model, frame)]
+            integrations: [model.toJSON(frame.options)]
         };
     },
     edit(model, apiConfig, frame) {
         debug('edit');
 
         frame.response = {
-            integrations: [mapper.mapIntegration(model, frame)]
+            integrations: [model.toJSON(frame.options)]
         };
     }
 };

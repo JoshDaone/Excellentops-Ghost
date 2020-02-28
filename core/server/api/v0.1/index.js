@@ -7,7 +7,7 @@
 const {isEmpty} = require('lodash');
 const Promise = require('bluebird');
 const models = require('../../models');
-const urlUtils = require('../../lib/url-utils');
+const urlService = require('../../services/url');
 const configuration = require('./configuration');
 const db = require('./db');
 const mail = require('./mail');
@@ -97,7 +97,7 @@ const cacheInvalidationHeader = (req, result) => {
                 return INVALIDATE_ALL;
             } else {
                 // routeKeywords.preview: 'p'
-                return urlUtils.urlFor({relativeUrl: urlUtils.urlJoin('/p', post.uuid, '/')});
+                return urlService.utils.urlFor({relativeUrl: urlService.utils.urlJoin('/p', post.uuid, '/')});
             }
         }
     }
@@ -115,32 +115,32 @@ const cacheInvalidationHeader = (req, result) => {
  * @return {String} Resolves to header string
  */
 const locationHeader = (req, result) => {
-    const apiRoot = urlUtils.urlFor('api', {version: 'v0.1'});
+    const apiRoot = urlService.utils.urlFor('api', {version: 'v0.1'});
     let location,
         newObject,
         statusQuery;
 
     if (req.method === 'POST') {
-        if (Object.prototype.hasOwnProperty.call(result, 'posts')) {
+        if (result.hasOwnProperty('posts')) {
             newObject = result.posts[0];
             statusQuery = `/?status=${newObject.status}`;
-            location = urlUtils.urlJoin(apiRoot, 'posts', newObject.id, statusQuery);
-        } else if (Object.prototype.hasOwnProperty.call(result, 'notifications')) {
+            location = urlService.utils.urlJoin(apiRoot, 'posts', newObject.id, statusQuery);
+        } else if (result.hasOwnProperty('notifications')) {
             newObject = result.notifications[0];
 
             // CASE: you add one notification, but it's a duplicate, the API will return {notifications: []}
             if (newObject) {
-                location = urlUtils.urlJoin(apiRoot, 'notifications', newObject.id, '/');
+                location = urlService.utils.urlJoin(apiRoot, 'notifications', newObject.id, '/');
             }
-        } else if (Object.prototype.hasOwnProperty.call(result, 'users')) {
+        } else if (result.hasOwnProperty('users')) {
             newObject = result.users[0];
-            location = urlUtils.urlJoin(apiRoot, 'users', newObject.id, '/');
-        } else if (Object.prototype.hasOwnProperty.call(result, 'tags')) {
+            location = urlService.utils.urlJoin(apiRoot, 'users', newObject.id, '/');
+        } else if (result.hasOwnProperty('tags')) {
             newObject = result.tags[0];
-            location = urlUtils.urlJoin(apiRoot, 'tags', newObject.id, '/');
-        } else if (Object.prototype.hasOwnProperty.call(result, 'webhooks')) {
+            location = urlService.utils.urlJoin(apiRoot, 'tags', newObject.id, '/');
+        } else if (result.hasOwnProperty('webhooks')) {
             newObject = result.webhooks[0];
-            location = urlUtils.urlJoin(apiRoot, 'webhooks', newObject.id, '/');
+            location = urlService.utils.urlJoin(apiRoot, 'webhooks', newObject.id, '/');
         }
     }
 

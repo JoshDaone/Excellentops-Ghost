@@ -1,3 +1,5 @@
+/* global Intl */
+
 const supportedLocales = ['en'],
     chalk = require('chalk'),
     fs = require('fs-extra'),
@@ -15,15 +17,15 @@ const supportedLocales = ['en'],
     settingsCache = require('../../services/settings/cache'),
     _private = {};
 
-// currentLocale, dynamically based on overall settings (key = "default_locale") in the settings db table
-// (during Ghost's initialization, settings available inside i18n functions below; see core/server/index.js)
-//
-// E.g.: en = English (default), es = Spanish, en-US = American English, etc.
-// Standard:
-// Language tags in HTML and XML
-// https://www.w3.org/International/articles/language-tags/
-//
-// The corresponding translation files should be at content/themes/mytheme/locales/es.json, etc.
+    // currentLocale, dynamically based on overall settings (key = "default_locale") in the settings db table
+    // (during Ghost's initialization, settings available inside i18n functions below; see core/server/index.js)
+    //
+    // E.g.: en = English (default), es = Spanish, en-US = American English, etc.
+    // Standard:
+    // Language tags in HTML and XML
+    // https://www.w3.org/International/articles/language-tags/
+    //
+    // The corresponding translation files should be at content/themes/mytheme/locales/es.json, etc.
 let currentLocale,
     activeTheme,
     coreStrings,
@@ -208,9 +210,7 @@ I18n = {
             } catch (err) {
                 themeStrings = undefined;
                 if (err.code === 'ENOENT') {
-                    if (currentLocale !== 'en') {
-                        logging.warn(`Theme's file locales/${currentLocale}.json not found.`);
-                    }
+                    logging.warn(`Theme's file locales/${currentLocale}.json not found.`);
                 } else {
                     throw err;
                 }
@@ -249,7 +249,7 @@ I18n = {
 
     /**
      * Exporting the current locale (e.g. "en") to make it available for other files as well,
-     * such as core/frontend/helpers/date.js and core/frontend/helpers/lang.js
+     * such as core/server/helpers/date.js and core/server/helpers/lang.js
      */
     locale: function locale() {
         return settingsCache.get('default_locale');

@@ -14,6 +14,7 @@ module.exports = {
             'filter',
             'fields',
             'limit',
+            'status',
             'order',
             'page',
             'debug'
@@ -41,6 +42,7 @@ module.exports = {
         data: [
             'id',
             'slug',
+            'status',
             'email',
             'role'
         ],
@@ -67,7 +69,9 @@ module.exports = {
     },
 
     edit: {
-        headers: {},
+        headers: {
+            cacheInvalidate: true
+        },
         options: [
             'id',
             'include'
@@ -92,12 +96,6 @@ module.exports = {
                         return Promise.reject(new common.errors.NotFoundError({
                             message: common.i18n.t('errors.api.users.userNotFound')
                         }));
-                    }
-
-                    if (model.wasChanged()) {
-                        this.headers.cacheInvalidate = true;
-                    } else {
-                        this.headers.cacheInvalidate = false;
                     }
 
                     return model;
@@ -146,6 +144,7 @@ module.exports = {
             data: {
                 newPassword: {required: true},
                 ne2Password: {required: true},
+                oldPassword: {required: true},
                 user_id: {required: true}
             }
         },

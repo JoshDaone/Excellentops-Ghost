@@ -4,16 +4,10 @@ const sequence = require('../../../lib/promise/sequence');
 const common = require('../../../lib/common');
 
 /**
- * @description Shared input serialization handler.
+ * The shared serialization handler runs the request through all the serialization steps.
  *
- * The shared input handler runs the request through all the validation steps.
- *
- * 1. Shared serialization
- * 2. API serialization
- *
- * @param {Object} apiConfig - Docname + method of the ctrl
- * @param {Object} apiSerializers - Target API serializers
- * @param {Object} frame
+ * 1. shared serialization
+ * 2. api serialization
  */
 module.exports.input = (apiConfig, apiSerializers, frame) => {
     debug('input');
@@ -67,20 +61,7 @@ module.exports.input = (apiConfig, apiSerializers, frame) => {
     return sequence(tasks);
 };
 
-/**
- * @description Shared output serialization handler.
- *
- * The shared output handler runs the request through all the validation steps.
- *
- * 1. Shared serialization
- * 2. API serialization
- *
- * @param {Object} response - API response
- * @param {Object} apiConfig - Docname + method of the ctrl
- * @param {Object} apiSerializers - Target API serializers
- * @param {Object} frame
- */
-module.exports.output = (response = {}, apiConfig, apiSerializers, frame) => {
+module.exports.output = (response = {}, apiConfig, apiSerializers, options) => {
     debug('output');
 
     const tasks = [];
@@ -95,30 +76,18 @@ module.exports.output = (response = {}, apiConfig, apiSerializers, frame) => {
 
     // ##### API VERSION RESOURCE SERIALIZATION
 
-    if (apiSerializers.all && apiSerializers.all.before) {
-        tasks.push(function allSerializeBefore() {
-            return apiSerializers.all.before(response, apiConfig, frame);
-        });
-    }
-
     if (apiSerializers[apiConfig.docName]) {
         if (apiSerializers[apiConfig.docName].all) {
             tasks.push(function serializeOptionsShared() {
-                return apiSerializers[apiConfig.docName].all(response, apiConfig, frame);
+                return apiSerializers[apiConfig.docName].all(response, apiConfig, options);
             });
         }
 
         if (apiSerializers[apiConfig.docName][apiConfig.method]) {
             tasks.push(function serializeOptionsShared() {
-                return apiSerializers[apiConfig.docName][apiConfig.method](response, apiConfig, frame);
+                return apiSerializers[apiConfig.docName][apiConfig.method](response, apiConfig, options);
             });
         }
-    }
-
-    if (apiSerializers.all && apiSerializers.all.after) {
-        tasks.push(function allSerializeAfter() {
-            return apiSerializers.all.after(apiConfig, frame);
-        });
     }
 
     debug(tasks);

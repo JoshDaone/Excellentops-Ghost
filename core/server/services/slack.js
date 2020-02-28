@@ -1,8 +1,7 @@
 var common = require('../lib/common'),
     request = require('../lib/request'),
     imageLib = require('../lib/image'),
-    urlUtils = require('../lib/url-utils'),
-    urlService = require('../../frontend/services/url'),
+    urlService = require('../services/url'),
     settingsCache = require('./settings/cache'),
     schema = require('../data/schema').checks,
     moment = require('moment'),
@@ -43,7 +42,6 @@ function ping(post) {
 
     // Quit here if slack integration is not activated
     if (slackSettings && slackSettings.url && slackSettings.url !== '') {
-        slackSettings.username = slackSettings.username ? slackSettings.username : 'Ghost';
         // Only ping when not a page
         if (post.page) {
             return;
@@ -64,7 +62,7 @@ function ping(post) {
                 text: `Notification from *${blogTitle}* :ghost:`,
                 unfurl_links: true,
                 icon_url: imageLib.blogIcon.getIconUrl(true),
-                username: slackSettings.username,
+                username: 'Ghost',
                 // We don't want to send attachment if it is a test notification.
                 attachments: [
                     {
@@ -72,7 +70,7 @@ function ping(post) {
                         title: title,
                         title_link: message,
                         author_name: blogTitle,
-                        image_url: post ? urlUtils.urlFor('image', {image: post.feature_image}, true) : null,
+                        image_url: post ? urlService.utils.urlFor('image', {image: post.feature_image}, true) : null,
                         color: '#008952',
                         fields: [
                             {
@@ -85,7 +83,7 @@ function ping(post) {
                     {
                         fallback: 'Sorry, content cannot be shown.',
                         color: '#008952',
-                        thumb_url: author ? urlUtils.urlFor('image', {image: author.profile_image}, true) : null,
+                        thumb_url: author ? urlService.utils.urlFor('image', {image: author.profile_image}, true) : null,
                         fields: [
                             {
                                 title: 'Author',
@@ -104,7 +102,7 @@ function ping(post) {
                 text: message,
                 unfurl_links: true,
                 icon_url: imageLib.blogIcon.getIconUrl(true),
-                username: slackSettings.username
+                username: 'Ghost'
             };
         }
 
@@ -117,7 +115,7 @@ function ping(post) {
             common.logging.error(new common.errors.GhostError({
                 err: err,
                 context: common.i18n.t('errors.services.ping.requestFailed.error', {service: 'slack'}),
-                help: common.i18n.t('errors.services.ping.requestFailed.help', {url: 'https://ghost.org/docs/'})
+                help: common.i18n.t('errors.services.ping.requestFailed.help', {url: 'https://docs.ghost.org'})
             }));
         });
     }

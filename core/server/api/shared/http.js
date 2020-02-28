@@ -2,37 +2,9 @@ const debug = require('ghost-ignition').debug('api:shared:http');
 const shared = require('../shared');
 const models = require('../../models');
 
-/**
- * @description HTTP wrapper.
- *
- * This wrapper is used in the routes definition (see web/).
- * The wrapper receives the express request, prepares the frame and forwards the request to the pipeline.
- *
- * @param {Function} apiImpl - Pipeline wrapper, which executes the target ctrl function.
- * @return {Function}
- */
 const http = (apiImpl) => {
     return (req, res, next) => {
         debug('request');
-
-        let apiKey = null;
-        let integration = null;
-        let user = null;
-
-        if (req.api_key) {
-            apiKey = {
-                id: req.api_key.get('id'),
-                type: req.api_key.get('type')
-            };
-            integration = {
-                id: req.api_key.get('integration_id')
-            };
-        }
-
-        // NOTE: "external user" is only used in the subscriber app. External user is ID "0".
-        if ((req.user && req.user.id) || (req.user && models.User.isExternalUser(req.user.id))) {
-            user = req.user.id;
-        }
 
         const frame = new shared.Frame({
             body: req.body,
@@ -42,9 +14,8 @@ const http = (apiImpl) => {
             params: req.params,
             user: req.user,
             context: {
-                api_key: apiKey,
-                user: user,
-                integration: integration,
+                api_key_id: (req.api_key && req.api_key.id) ? req.api_key.id : null,
+                user: ((req.user && req.user.id) || (req.user && models.User.isExternalUser(req.user.id))) ? req.user.id : null,
                 member: (req.member || null)
             }
         });
@@ -56,10 +27,6 @@ const http = (apiImpl) => {
 
         apiImpl(frame)
             .then((result) => {
-                return shared.headers.get(result, apiImpl.headers, frame)
-                    .then(headers => ({result, headers}));
-            })
-            .then(({result, headers}) => {
                 debug(result);
 
                 // CASE: api ctrl wants to handle the express response (e.g. streams)
@@ -78,7 +45,7 @@ const http = (apiImpl) => {
                 res.status(statusCode);
 
                 // CASE: generate headers based on the api ctrl configuration
-                res.set(headers);
+                res.set(shared.headers.get(result, apiImpl.headers));
 
                 if (apiImpl.response && apiImpl.response.format === 'plain') {
                     debug('plain text response');
@@ -89,11 +56,6 @@ const http = (apiImpl) => {
                 res.json(result || {});
             })
             .catch((err) => {
-                req.frameOptions = {
-                    docName: frame.docName,
-                    method: frame.method
-                };
-
                 next(err);
             });
     };

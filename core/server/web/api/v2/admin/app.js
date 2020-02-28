@@ -25,15 +25,18 @@ module.exports = function setupApiApp() {
     // Therefore must come after themeHandler.ghostLocals, for now
     apiApp.use(shared.middlewares.api.versionMatch);
 
-    // Admin API shouldn't be cached
+    // API shouldn't be cached
     apiApp.use(shared.middlewares.cacheControl('private'));
+
+    // Register event emmiter on req/res to trigger cache invalidation webhook event
+    apiApp.use(shared.middlewares.emitEvents);
 
     // Routing
     apiApp.use(routes());
 
     // API error handling
     apiApp.use(shared.middlewares.errorHandler.resourceNotFound);
-    apiApp.use(shared.middlewares.errorHandler.handleJSONResponseV2);
+    apiApp.use(shared.middlewares.errorHandler.handleJSONResponse);
 
     debug('Admin API v2 setup end');
 

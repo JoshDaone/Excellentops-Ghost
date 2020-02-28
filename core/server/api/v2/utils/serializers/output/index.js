@@ -1,16 +1,4 @@
 module.exports = {
-    get all() {
-        return require('./all');
-    },
-
-    get authentication() {
-        return require('./authentication');
-    },
-
-    get db() {
-        return require('./db');
-    },
-
     get integrations() {
         return require('./integrations');
     },
@@ -19,20 +7,12 @@ module.exports = {
         return require('./pages');
     },
 
-    get redirects() {
-        return require('./redirects');
-    },
-
     get roles() {
         return require('./roles');
     },
 
     get slugs() {
         return require('./slugs');
-    },
-
-    get schedules() {
-        return require('./schedules');
     },
 
     get webhooks() {
@@ -63,12 +43,8 @@ module.exports = {
         return require('./subscribers');
     },
 
-    get members() {
-        return require('./members');
-    },
-
-    get images() {
-        return require('./images');
+    get upload() {
+        return require('./upload');
     },
 
     get tags() {
@@ -89,21 +65,5 @@ module.exports = {
 
     get authors() {
         return require('./authors');
-    },
-
-    get config() {
-        return require('./config');
-    },
-
-    get themes() {
-        return require('./themes');
-    },
-
-    get actions() {
-        return require('./actions');
-    },
-
-    get site() {
-        return require('./site');
     }
 };

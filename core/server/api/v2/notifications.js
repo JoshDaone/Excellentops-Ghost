@@ -20,50 +20,29 @@ _private.fetchAllNotifications = () => {
     return allNotifications;
 };
 
-_private.wasSeen = (notification, user) => {
-    if (notification.seenBy === undefined) {
-        return notification.seen;
-    } else {
-        return notification.seenBy.includes(user.id);
-    }
-};
-
 module.exports = {
     docName: 'notifications',
 
     browse: {
         permissions: true,
-        query(frame) {
+        query() {
             let allNotifications = _private.fetchAllNotifications();
             allNotifications = _.orderBy(allNotifications, 'addedAt', 'desc');
 
             allNotifications = allNotifications.filter((notification) => {
-                // NOTE: Filtering by version below is just a patch for bigger problem - notifications are not removed
-                //       after Ghost update. Logic below should be removed when Ghost upgrade detection
-                //       is done (https://github.com/TryGhost/Ghost/issues/10236) and notifications are
-                //       be removed permanently on upgrade event.
-                const ghost20RegEx = /Ghost 2.0 is now available/gi;
-
                 // CASE: do not return old release notification
-                if (notification.message && (!notification.custom || notification.message.match(ghost20RegEx))) {
-                    let notificationVersion = notification.message.match(/(\d+\.)(\d+\.)(\d+)/);
+                if (!notification.custom && notification.message) {
+                    const notificationVersion = notification.message.match(/(\d+\.)(\d+\.)(\d+)/),
+                        blogVersion = ghostVersion.full.match(/^(\d+\.)(\d+\.)(\d+)/);
 
-                    if (notification.message.match(ghost20RegEx)) {
-                        notificationVersion = '2.0.0';
-                    } else if (notificationVersion){
-                        notificationVersion = notificationVersion[0];
-                    }
-
-                    const blogVersion = ghostVersion.full.match(/^(\d+\.)(\d+\.)(\d+)/);
-
-                    if (notificationVersion && blogVersion && semver.gt(notificationVersion, blogVersion[0])) {
+                    if (notificationVersion && blogVersion && semver.gt(notificationVersion[0], blogVersion[0])) {
                         return true;
                     } else {
                         return false;
                     }
                 }
 
-                return !_private.wasSeen(notification, frame.user);
+                return notification.seen !== true;
             });
 
             return allNotifications;
@@ -93,7 +72,7 @@ module.exports = {
             };
 
             let notificationsToCheck = frame.data.notifications;
-            let notificationsToAdd = [];
+            let addedNotifications = [];
 
             const allNotifications = _private.fetchAllNotifications();
 
@@ -103,7 +82,7 @@ module.exports = {
                 });
 
                 if (!isDuplicate) {
-                    notificationsToAdd.push(Object.assign({}, defaults, notification, overrides));
+                    addedNotifications.push(Object.assign({}, defaults, notification, overrides));
                 }
             });
 
@@ -119,30 +98,29 @@ module.exports = {
             }
 
             // CASE: nothing to add, skip
-            if (!notificationsToAdd.length) {
+            if (!addedNotifications.length) {
                 return Promise.resolve();
             }
 
-            const releaseNotificationsToAdd = notificationsToAdd.filter((notification) => {
+            const addedReleaseNotifications = addedNotifications.filter((notification) => {
                 return !notification.custom;
             });
 
-            // CASE: reorder notifications before save
-            if (releaseNotificationsToAdd.length > 1) {
-                notificationsToAdd = notificationsToAdd.filter((notification) => {
+            // CASE: only latest release notification
+            if (addedReleaseNotifications.length > 1) {
+                addedNotifications = addedNotifications.filter((notification) => {
                     return notification.custom;
                 });
-                notificationsToAdd.push(_.orderBy(releaseNotificationsToAdd, 'created_at', 'desc')[0]);
+                addedNotifications.push(_.orderBy(addedReleaseNotifications, 'created_at', 'desc')[0]);
             }
 
             return api.settings.edit({
                 settings: [{
                     key: 'notifications',
-                    // @NOTE: We always need to store all notifications!
-                    value: allNotifications.concat(notificationsToAdd)
+                    value: allNotifications.concat(addedNotifications)
                 }]
             }, internalContext).then(() => {
-                return notificationsToAdd;
+                return addedNotifications;
             });
         }
     },
@@ -180,18 +158,11 @@ module.exports = {
                 }));
             }
 
-            if (_private.wasSeen(notificationToMarkAsSeen, frame.user)) {
+            if (notificationToMarkAsSeen.seen) {
                 return Promise.resolve();
             }
 
-            // @NOTE: We don't remove the notifications, because otherwise we will receive them again from the service.
             allNotifications[notificationToMarkAsSeenIndex].seen = true;
-
-            if (!allNotifications[notificationToMarkAsSeenIndex].seenBy) {
-                allNotifications[notificationToMarkAsSeenIndex].seenBy = [];
-            }
-
-            allNotifications[notificationToMarkAsSeenIndex].seenBy.push(frame.user.id);
 
             return api.settings.edit({
                 settings: [{
@@ -202,11 +173,6 @@ module.exports = {
         }
     },
 
-    /**
-     * Clears all notifications. Method used in tests only
-     *
-     * @private Not exposed over HTTP
-     */
     destroyAll: {
         statusCode: 204,
         permissions: {
@@ -216,7 +182,6 @@ module.exports = {
             const allNotifications = _private.fetchAllNotifications();
 
             allNotifications.forEach((notification) => {
-                // @NOTE: We don't remove the notifications, because otherwise we will receive them again from the service.
                 notification.seen = true;
             });
 

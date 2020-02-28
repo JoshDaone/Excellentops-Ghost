@@ -53,7 +53,7 @@ _private.removeApiKeyPermissionsAndRole = (options) => {
                 return;
             }
 
-            return role.destroy(options).then(() => {
+            return role.destroy().then(() => {
                 logging.info(message);
             });
         });

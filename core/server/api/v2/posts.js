@@ -1,8 +1,8 @@
 const models = require('../../models');
 const common = require('../../lib/common');
-const urlUtils = require('../../lib/url-utils');
-const allowedIncludes = ['tags', 'authors', 'authors.roles'];
-const unsafeAttrs = ['status', 'authors', 'visibility'];
+const urlService = require('../../services/url');
+const allowedIncludes = ['created_by', 'updated_by', 'published_by', 'author', 'tags', 'authors', 'authors.roles'];
+const unsafeAttrs = ['author_id', 'status', 'authors'];
 
 module.exports = {
     docName: 'posts',
@@ -12,6 +12,7 @@ module.exports = {
             'filter',
             'fields',
             'formats',
+            'status',
             'limit',
             'order',
             'page',
@@ -40,16 +41,15 @@ module.exports = {
         options: [
             'include',
             'fields',
+            'status',
             'formats',
             'debug',
-            'absolute_urls',
-            // NOTE: only for internal context
-            'forUpdate',
-            'transacting'
+            'absolute_urls'
         ],
         data: [
             'id',
             'slug',
+            'status',
             'uuid'
         ],
         validation: {
@@ -83,16 +83,12 @@ module.exports = {
         statusCode: 201,
         headers: {},
         options: [
-            'include',
-            'source'
+            'include'
         ],
         validation: {
             options: {
                 include: {
                     values: allowedIncludes
-                },
-                source: {
-                    values: ['html']
                 }
             }
         },
@@ -117,11 +113,7 @@ module.exports = {
         headers: {},
         options: [
             'include',
-            'id',
-            'source',
-            // NOTE: only for internal context
-            'forUpdate',
-            'transacting'
+            'id'
         ],
         validation: {
             options: {
@@ -130,9 +122,6 @@ module.exports = {
                 },
                 id: {
                     required: true
-                },
-                source: {
-                    values: ['html']
                 }
             }
         },
@@ -142,18 +131,13 @@ module.exports = {
         query(frame) {
             return models.Post.edit(frame.data.posts[0], frame.options)
                 .then((model) => {
-                    if (
-                        model.get('status') === 'published' && model.wasChanged() ||
-                        model.get('status') === 'draft' && model.previous('status') === 'published'
-                    ) {
+                    if (model.get('status') === 'published' ||
+                        model.get('status') === 'draft' && model.updated('status') === 'published') {
                         this.headers.cacheInvalidate = true;
-                    } else if (
-                        model.get('status') === 'draft' && model.previous('status') !== 'published' ||
-                        model.get('status') === 'scheduled' && model.wasChanged()
-                    ) {
+                    } else if (model.get('status') === 'draft' && model.updated('status') !== 'published') {
                         this.headers.cacheInvalidate = {
-                            value: urlUtils.urlFor({
-                                relativeUrl: urlUtils.urlJoin('/p', model.get('uuid'), '/')
+                            value: urlService.utils.urlFor({
+                                relativeUrl: urlService.utils.urlJoin('/p', model.get('uuid'), '/')
                             })
                         };
                     } else {

@@ -27,7 +27,7 @@ module.exports = {
             maxlength: 50,
             nullable: false,
             defaultTo: 'public',
-            validations: {isIn: [['public', 'members', 'paid']]}
+            validations: {isIn: [['public']]}
         },
         meta_title: {type: 'string', maxlength: 2000, nullable: true, validations: {isLength: {max: 300}}},
         meta_description: {type: 'string', maxlength: 2000, nullable: true, validations: {isLength: {max: 500}}},
@@ -37,11 +37,6 @@ module.exports = {
          */
         author_id: {type: 'string', maxlength: 24, nullable: false},
         created_at: {type: 'dateTime', nullable: false},
-        /**
-         * @deprecated: https://github.com/TryGhost/Ghost/issues/10286
-         *
-         * This is valid for all x_by fields.
-         */
         created_by: {type: 'string', maxlength: 24, nullable: false},
         updated_at: {type: 'dateTime', nullable: true},
         updated_by: {type: 'string', maxlength: 24, nullable: true},
@@ -56,8 +51,7 @@ module.exports = {
         twitter_image: {type: 'string', maxlength: 2000, nullable: true},
         twitter_title: {type: 'string', maxlength: 300, nullable: true},
         twitter_description: {type: 'string', maxlength: 500, nullable: true},
-        custom_template: {type: 'string', maxlength: 100, nullable: true},
-        canonical_url: {type: 'text', maxlength: 2000, nullable: true}
+        custom_template: {type: 'string', maxlength: 100, nullable: true}
     },
     users: {
         id: {type: 'string', maxlength: 24, nullable: false, primary: true},
@@ -148,7 +142,7 @@ module.exports = {
             maxlength: 50,
             nullable: false,
             defaultTo: 'core',
-            validations: {isIn: [['core', 'blog', 'theme', 'app', 'plugin', 'private', 'members']]}
+            validations: {isIn: [['core', 'blog', 'theme', 'app', 'plugin', 'private']]}
         },
         created_at: {type: 'dateTime', nullable: false},
         created_by: {type: 'string', maxlength: 24, nullable: false},
@@ -334,13 +328,6 @@ module.exports = {
     },
     integrations: {
         id: {type: 'string', maxlength: 24, nullable: false, primary: true},
-        type: {
-            type: 'string',
-            maxlength: 50,
-            nullable: false,
-            defaultTo: 'custom',
-            validations: {isIn: [['internal', 'builtin', 'custom']]}
-        },
         name: {type: 'string', maxlength: 191, nullable: false},
         slug: {type: 'string', maxlength: 191, nullable: false, unique: true},
         icon_image: {type: 'string', maxlength: 2000, nullable: true},
@@ -363,7 +350,7 @@ module.exports = {
             maxlength: 191,
             nullable: false,
             unique: true,
-            validations: {isLength: {min: 26, max: 128}}
+            validations: {isLength: {min: 128, max: 128}}
         },
         role_id: {type: 'string', maxlength: 24, nullable: true},
         // integration_id is nullable to allow "internal" API keys that don't show in the UI
@@ -380,60 +367,6 @@ module.exports = {
         post_id: {type: 'string', maxlength: 24, nullable: false, index: true},
         mobiledoc: {type: 'text', maxlength: 1000000000, fieldtype: 'long', nullable: true},
         created_at_ts: {type: 'bigInteger', nullable: false},
-        created_at: {type: 'dateTime', nullable: false}
-    },
-    members: {
-        id: {type: 'string', maxlength: 24, nullable: false, primary: true},
-        email: {type: 'string', maxlength: 191, nullable: false, unique: true, validations: {isEmail: true}},
-        name: {type: 'string', maxlength: 191, nullable: true},
-        note: {type: 'string', maxlength: 2000, nullable: true},
-        created_at: {type: 'dateTime', nullable: false},
-        created_by: {type: 'string', maxlength: 24, nullable: false},
-        updated_at: {type: 'dateTime', nullable: true},
-        updated_by: {type: 'string', maxlength: 24, nullable: true}
-    },
-    members_stripe_customers: {
-        id: {type: 'string', maxlength: 24, nullable: false, primary: true},
-        member_id: {type: 'string', maxlength: 24, nullable: false, unique: false},
-        // customer_id is unique: false because mysql with innodb utf8mb4 cannot have unqiue columns larger than 191 chars
-        customer_id: {type: 'string', maxlength: 255, nullable: false, unique: false},
-        name: {type: 'string', maxlength: 191, nullable: true},
-        email: {type: 'string', maxlength: 191, nullable: true},
-        created_at: {type: 'dateTime', nullable: false},
-        created_by: {type: 'string', maxlength: 24, nullable: false},
-        updated_at: {type: 'dateTime', nullable: true},
-        updated_by: {type: 'string', maxlength: 24, nullable: true}
-    },
-    members_stripe_customers_subscriptions: {
-        id: {type: 'string', maxlength: 24, nullable: false, primary: true},
-        customer_id: {type: 'string', maxlength: 255, nullable: false, unique: false},
-        subscription_id: {type: 'string', maxlength: 255, nullable: false, unique: false},
-        plan_id: {type: 'string', maxlength: 255, nullable: false, unique: false},
-        status: {type: 'string', maxlength: 50, nullable: false},
-        current_period_end: {type: 'dateTime', nullable: false},
-        start_date: {type: 'dateTime', nullable: false},
-        default_payment_card_last4: {type: 'string', maxlength: 4, nullable: true},
-        created_at: {type: 'dateTime', nullable: false},
-        created_by: {type: 'string', maxlength: 24, nullable: false},
-        updated_at: {type: 'dateTime', nullable: true},
-        updated_by: {type: 'string', maxlength: 24, nullable: true},
-        /* Below fields eventually should be normalised e.g. stripe_plans table, link to here on plan_id */
-        plan_nickname: {type: 'string', maxlength: 50, nullable: false},
-        plan_interval: {type: 'string', maxlength: 50, nullable: false},
-        plan_amount: {type: 'integer', nullable: false},
-        plan_currency: {type: 'string', maxLength: 3, nullable: false}
-    },
-    actions: {
-        id: {type: 'string', maxlength: 24, nullable: false, primary: true},
-        resource_id: {type: 'string', maxlength: 24, nullable: true},
-        resource_type: {type: 'string', maxlength: 50, nullable: false},
-        actor_id: {type: 'string', maxlength: 24, nullable: false},
-        actor_type: {type: 'string', maxlength: 50, nullable: false},
-        // @NOTE: The event column contains short buzzwords e.g. subscribed, started, added, deleted, edited etc.
-        //        We already store and require the target resource type. No need to remember e.g. post.edited
-        event: {type: 'string', maxlength: 50, nullable: false},
-        // @NOTE: The context object can be used to store information about an action e.g. diffs, meta
-        context: {type: 'text', maxlength: 1000000000, nullable: true},
         created_at: {type: 'dateTime', nullable: false}
     }
 };

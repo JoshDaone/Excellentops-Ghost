@@ -1,18 +1,28 @@
-const urlUtils = require('../../../../../../lib/url-utils');
+const {absoluteToRelative, getBlogUrl, STATIC_IMAGE_URL_PREFIX} = require('../../../../../../services/url/utils');
 
 const handleImageUrl = (imageUrl) => {
-    const siteDomain = urlUtils.getSiteUrl().replace(/^http(s?):\/\//, '').replace(/\/$/, '');
+    const blogUrl = getBlogUrl().replace(/^http(s?):\/\//, '').replace(/\/$/, '');
     const imageUrlAbsolute = imageUrl.replace(/^http(s?):\/\//, '');
-    const imagePathRe = new RegExp(`^${siteDomain}/${urlUtils.STATIC_IMAGE_URL_PREFIX}`);
-
+    const imagePathRe = new RegExp(`^${blogUrl}/${STATIC_IMAGE_URL_PREFIX}`);
     if (imagePathRe.test(imageUrlAbsolute)) {
-        return urlUtils.absoluteToRelative(imageUrl);
+        return absoluteToRelative(imageUrl);
     }
-
     return imageUrl;
 };
 
 const forPost = (attrs, options) => {
+    if (attrs.feature_image) {
+        attrs.feature_image = handleImageUrl(attrs.feature_image);
+    }
+
+    if (attrs.og_image) {
+        attrs.og_image = handleImageUrl(attrs.og_image);
+    }
+
+    if (attrs.twitter_image) {
+        attrs.twitter_image = handleImageUrl(attrs.twitter_image);
+    }
+
     if (options && options.withRelated) {
         options.withRelated.forEach((relation) => {
             if (relation === 'tags' && attrs.tags) {
@@ -52,15 +62,6 @@ const forTag = (attrs) => {
     return attrs;
 };
 
-const forSetting = (attrs) => {
-    if (attrs.value) {
-        attrs.value = handleImageUrl(attrs.value);
-    }
-
-    return attrs;
-};
-
 module.exports.forPost = forPost;
 module.exports.forUser = forUser;
 module.exports.forTag = forTag;
-module.exports.forSetting = forSetting;

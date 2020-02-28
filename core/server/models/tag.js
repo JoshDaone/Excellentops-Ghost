@@ -18,20 +18,14 @@ Tag = ghostBookshelf.Model.extend({
     },
 
     onCreated: function onCreated(model, attrs, options) {
-        ghostBookshelf.Model.prototype.onCreated.apply(this, arguments);
-
         model.emitChange('added', options);
     },
 
     onUpdated: function onUpdated(model, attrs, options) {
-        ghostBookshelf.Model.prototype.onUpdated.apply(this, arguments);
-
         model.emitChange('edited', options);
     },
 
     onDestroyed: function onDestroyed(model, options) {
-        ghostBookshelf.Model.prototype.onDestroyed.apply(this, arguments);
-
         model.emitChange('deleted', options);
     },
 
@@ -45,7 +39,7 @@ Tag = ghostBookshelf.Model.extend({
             this.set('visibility', 'internal');
         }
 
-        if (this.hasChanged('slug') || (!this.get('slug') && this.get('name'))) {
+        if (this.hasChanged('slug') || !this.get('slug')) {
             // Pass the new slug through the generator to strip illegal characters, detect duplicates
             return ghostBookshelf.Model.generateSlug(Tag, this.get('slug') || this.get('name'),
                 {transacting: options.transacting})
@@ -53,6 +47,13 @@ Tag = ghostBookshelf.Model.extend({
                     self.set({slug: slug});
                 });
         }
+    },
+
+    emptyStringProperties: function emptyStringProperties() {
+        // CASE: the client might send empty image properties with "" instead of setting them to null.
+        // This can cause GQL to fail. We therefore enforce 'null' for empty image properties.
+        // See https://github.com/TryGhost/GQL/issues/24
+        return ['feature_image'];
     },
 
     posts: function posts() {
@@ -68,24 +69,6 @@ Tag = ghostBookshelf.Model.extend({
         delete attrs.parent_id;
 
         return attrs;
-    },
-
-    getAction(event, options) {
-        const actor = this.getActor(options);
-
-        // @NOTE: we ignore internal updates (`options.context.internal`) for now
-        if (!actor) {
-            return;
-        }
-
-        // @TODO: implement context
-        return {
-            event: event,
-            resource_id: this.id || this.previous('id'),
-            resource_type: 'tag',
-            actor_id: actor.id,
-            actor_type: actor.type
-        };
     }
 }, {
     orderDefaultOptions: function orderDefaultOptions() {
@@ -98,8 +81,9 @@ Tag = ghostBookshelf.Model.extend({
             // whitelists for the `options` hash argument on methods, by method name.
             // these are the only options that can be passed to Bookshelf / Knex.
             validOptions = {
+                findPage: ['page', 'limit', 'columns', 'filter', 'order'],
                 findAll: ['columns'],
-                findOne: ['columns', 'visibility'],
+                findOne: ['visibility'],
                 destroy: ['destroyAll']
             };
 

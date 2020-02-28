@@ -1,46 +1,17 @@
-const _ = require('lodash');
 const utils = require('../../../index');
 const url = require('./url');
 const date = require('./date');
 const members = require('./members');
-const clean = require('./clean');
-const extraAttrs = require('./extra-attrs');
-
-const mapUser = (model, frame) => {
-    const jsonModel = model.toJSON ? model.toJSON(frame.options) : model;
-
-    url.forUser(model.id, jsonModel, frame.options);
-
-    clean.author(jsonModel, frame);
-
-    return jsonModel;
-};
-
-const mapTag = (model, frame) => {
-    const jsonModel = model.toJSON ? model.toJSON(frame.options) : model;
-
-    url.forTag(model.id, jsonModel, frame.options);
-    clean.tag(jsonModel, frame);
-
-    return jsonModel;
-};
 
 const mapPost = (model, frame) => {
-    const extendedOptions = Object.assign(_.cloneDeep(frame.options), {
-        extraProperties: ['canonical_url']
-    });
+    const jsonModel = model.toJSON(frame.options);
 
-    const jsonModel = model.toJSON(extendedOptions);
-
-    url.forPost(model.id, jsonModel, frame);
+    url.forPost(model.id, jsonModel, frame.options);
 
     if (utils.isContentAPI(frame)) {
         date.forPost(jsonModel);
         members.forPost(jsonModel, frame);
     }
-
-    extraAttrs.forPost(frame, model, jsonModel);
-    clean.post(jsonModel, frame);
 
     if (frame.options && frame.options.withRelated) {
         frame.options.withRelated.forEach((relation) => {
@@ -48,11 +19,19 @@ const mapPost = (model, frame) => {
             // are being passed by reference in tags/authors. Might be refactored into more explicit call
             // in the future, but is good enough for current use-case
             if (relation === 'tags' && jsonModel.tags) {
-                jsonModel.tags = jsonModel.tags.map(tag => mapTag(tag, frame));
+                jsonModel.tags = jsonModel.tags.map(tag => url.forTag(tag.id, tag));
+
+                if (utils.isContentAPI(frame)) {
+                    jsonModel.tags = jsonModel.tags.map(tag => date.forTag(tag));
+                }
+            }
+
+            if (relation === 'author' && jsonModel.author) {
+                jsonModel.author = url.forUser(jsonModel.author.id, jsonModel.author);
             }
 
             if (relation === 'authors' && jsonModel.authors) {
-                jsonModel.authors = jsonModel.authors.map(author => mapUser(author, frame));
+                jsonModel.authors = jsonModel.authors.map(author => url.forUser(author.id, author));
             }
         });
     }
@@ -60,40 +39,25 @@ const mapPost = (model, frame) => {
     return jsonModel;
 };
 
-const mapSettings = (attrs, frame) => {
-    url.forSettings(attrs);
-    extraAttrs.forSettings(attrs, frame);
-    return attrs;
-};
+const mapUser = (model, frame) => {
+    const jsonModel = model.toJSON(frame.options);
 
-const mapIntegration = (model, frame) => {
-    const jsonModel = model.toJSON ? model.toJSON(frame.options) : model;
-
-    if (jsonModel.api_keys) {
-        jsonModel.api_keys.forEach((key) => {
-            if (key.type === 'admin') {
-                key.secret = `${key.id}:${key.secret}`;
-            }
-        });
-    }
+    url.forUser(model.id, jsonModel);
 
     return jsonModel;
 };
 
-const mapImage = (path) => {
-    return url.forImage(path);
-};
+const mapTag = (model, frame) => {
+    const jsonModel = model.toJSON(frame.options);
+    url.forTag(model.id, jsonModel);
 
-const mapAction = (model, frame) => {
-    const attrs = model.toJSON(frame.options);
-    clean.action(attrs);
-    return attrs;
+    if (utils.isContentAPI(frame)) {
+        date.forTag(jsonModel);
+    }
+
+    return jsonModel;
 };
 
 module.exports.mapPost = mapPost;
 module.exports.mapUser = mapUser;
 module.exports.mapTag = mapTag;
-module.exports.mapIntegration = mapIntegration;
-module.exports.mapSettings = mapSettings;
-module.exports.mapImage = mapImage;
-module.exports.mapAction = mapAction;

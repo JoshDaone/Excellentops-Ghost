@@ -1,36 +1,15 @@
-const omit = require('lodash/omit');
 const crypto = require('crypto');
 const ghostBookshelf = require('./base');
 const {Role} = require('./role');
 
-/*
- * Uses birthday problem estimation to calculate chance of collision
- * d = 16^26        // 26 char hex string
- * n = 10,000,000   // 10 million
- *
- *       (-n x (n-1)) / 2d
- * 1 - e^
- *
- *
- *           17
- * ~= 4 x 10^
- *
- * ref: https://medium.freecodecamp.org/how-long-should-i-make-my-api-key-833ebf2dc26f
- * ref: https://en.wikipedia.org/wiki/Birthday_problem#Approximations
- *
- * 26 char hex string = 13 bytes
- * 64 char hex string JWT secret = 32 bytes
- */
-const createSecret = (type) => {
-    const bytes = type === 'content' ? 13 : 32;
-    return crypto.randomBytes(bytes).toString('hex');
-};
+const createSecret = () => crypto.randomBytes(64).toString('hex');
 
 const ApiKey = ghostBookshelf.Model.extend({
     tableName: 'api_keys',
 
     defaults() {
-        const secret = createSecret(this.get('type'));
+        // 512bit key for HS256 JWT signing
+        const secret = createSecret();
 
         return {
             secret
@@ -41,12 +20,11 @@ const ApiKey = ghostBookshelf.Model.extend({
         return this.belongsTo('Role');
     },
 
+    // if an ApiKey does not have a related Integration then it's considered
+    // "internal" and shouldn't show up in the UI. Example internal API Keys
+    // would be the ones used for the scheduler and backup clients
     integration() {
         return this.belongsTo('Integration');
-    },
-
-    format(attrs) {
-        return omit(attrs, 'role');
     },
 
     onSaving(model, attrs, options) {
@@ -57,7 +35,7 @@ const ApiKey = ghostBookshelf.Model.extend({
         // - content key = no role
         if (this.hasChanged('type') || this.hasChanged('role_id')) {
             if (this.get('type') === 'admin') {
-                return Role.findOne({name: attrs.role || 'Admin Integration'}, Object.assign({}, options, {columns: ['id']}))
+                return Role.findOne({name: 'Admin Integration'}, Object.assign({}, options, {columns: ['id']}))
                     .then((role) => {
                         this.set('role_id', role.get('id'));
                     });
@@ -70,7 +48,7 @@ const ApiKey = ghostBookshelf.Model.extend({
     }
 }, {
     refreshSecret(data, options) {
-        const secret = createSecret(data.type);
+        const secret = createSecret();
         return this.edit(Object.assign({}, data, {secret}), options);
     }
 });

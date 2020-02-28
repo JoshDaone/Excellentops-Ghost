@@ -1,3 +1,4 @@
+const fs = require('fs-extra');
 const Promise = require('bluebird');
 const models = require('../../models');
 const fsLib = require('../../lib/fs');
@@ -142,7 +143,7 @@ const subscribers = {
                 type: 'csv',
                 value() {
                     const datetime = (new Date()).toJSON().substring(0, 10);
-                    return `subscribers.${datetime}.csv`;
+                    return `Attachment; filename="subscribers.${datetime}.csv"`;
                 }
             }
         },
@@ -207,6 +208,9 @@ const subscribers = {
                         }
                     }
                 };
+            }).finally(() => {
+                // Remove uploaded file from tmp location
+                return fs.unlink(filePath);
             });
         }
     }

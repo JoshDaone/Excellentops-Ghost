@@ -37,23 +37,7 @@ User = ghostBookshelf.Model.extend({
         ghostBookshelf.Model.prototype.emitChange.bind(this)(this, eventToTrigger, options);
     },
 
-    /**
-     * @TODO:
-     *
-     * The user model does not use bookshelf-relations yet.
-     * Therefor we have to remove the relations manually.
-     */
-    onDestroying(model, options) {
-        ghostBookshelf.Model.prototype.onDestroying.apply(this, arguments);
-
-        return (options.transacting || ghostBookshelf.knex)('roles_users')
-            .where('user_id', model.id)
-            .del();
-    },
-
     onDestroyed: function onDestroyed(model, options) {
-        ghostBookshelf.Model.prototype.onDestroyed.apply(this, arguments);
-
         if (_.includes(activeStates, model.previous('status'))) {
             model.emitChange('deactivated', options);
         }
@@ -62,8 +46,6 @@ User = ghostBookshelf.Model.extend({
     },
 
     onCreated: function onCreated(model, attrs, options) {
-        ghostBookshelf.Model.prototype.onCreated.apply(this, arguments);
-
         model.emitChange('added', options);
 
         // active is the default state, so if status isn't provided, this will be an active user
@@ -73,9 +55,7 @@ User = ghostBookshelf.Model.extend({
     },
 
     onUpdated: function onUpdated(model, response, options) {
-        ghostBookshelf.Model.prototype.onUpdated.apply(this, arguments);
-
-        model.statusChanging = model.get('status') !== model.previous('status');
+        model.statusChanging = model.get('status') !== model.updated('status');
         model.isActive = _.includes(activeStates, model.get('status'));
 
         if (model.statusChanging) {
@@ -219,12 +199,10 @@ User = ghostBookshelf.Model.extend({
 
         // NOTE: We don't expose the email address for for external, app and public context.
         // @TODO: Why? External+Public is actually the same context? Was also mentioned here https://github.com/TryGhost/Ghost/issues/9043
-        // @TODO: move to api serialization when we drop v0.1
-        if (!options || !options.context || (!options.context.user && !options.context.internal && (!options.context.api_key || options.context.api_key.type === 'content'))) {
+        if (!options || !options.context || (!options.context.user && !options.context.internal)) {
             delete attrs.email;
         }
 
-        // @TODO remove this when we remove v0.1 API as its handled in serialization for v2
         // We don't expose these fields when fetching data via the public API.
         if (options && options.context && options.context.public) {
             delete attrs.created_at;
@@ -237,6 +215,13 @@ User = ghostBookshelf.Model.extend({
         }
 
         return attrs;
+    },
+
+    emptyStringProperties: function emptyStringProperties() {
+        // CASE: the client might send empty image properties with "" instead of setting them to null.
+        // This can cause GQL to fail. We therefore enforce 'null' for empty image properties.
+        // See https://github.com/TryGhost/GQL/issues/24
+        return ['profile_image', 'cover_image'];
     },
 
     format: function format(options) {
@@ -322,24 +307,6 @@ User = ghostBookshelf.Model.extend({
         delete options.status;
 
         return filter;
-    },
-
-    getAction(event, options) {
-        const actor = this.getActor(options);
-
-        // @NOTE: we ignore internal updates (`options.context.internal`) for now
-        if (!actor) {
-            return;
-        }
-
-        // @TODO: implement context
-        return {
-            event: event,
-            resource_id: this.id || this.previous('id'),
-            resource_type: 'user',
-            actor_id: actor.id,
-            actor_type: actor.type
-        };
     }
 }, {
     orderDefaultOptions: function orderDefaultOptions() {
@@ -365,7 +332,7 @@ User = ghostBookshelf.Model.extend({
                 setup: ['id'],
                 edit: ['withRelated', 'importPersistUser'],
                 add: ['importPersistUser'],
-                findPage: ['status'],
+                findPage: ['page', 'limit', 'columns', 'filter', 'order', 'status'],
                 findAll: ['filter']
             };
 
@@ -402,11 +369,6 @@ User = ghostBookshelf.Model.extend({
             status,
             data = _.cloneDeep(dataToClone),
             lookupRole = data.role;
-
-        // Ensure only valid fields/columns are added to query
-        if (options.columns) {
-            options.columns = _.intersection(options.columns, this.prototype.permittedAttributes());
-        }
 
         delete data.role;
         data = _.defaults(data || {}, {
@@ -473,7 +435,7 @@ User = ghostBookshelf.Model.extend({
         }
 
         ops.push(function update() {
-            return ghostBookshelf.Model.edit.call(self, data, options).then((user) => {
+            return ghostBookshelf.Model.edit.call(self, data, options).then(function then(user) {
                 var roleId;
 
                 if (!data.roles) {
@@ -482,13 +444,13 @@ User = ghostBookshelf.Model.extend({
 
                 roleId = data.roles[0].id || data.roles[0];
 
-                return user.roles().fetch().then((roles) => {
+                return user.roles().fetch().then(function then(roles) {
                     // return if the role is already assigned
                     if (roles.models[0].id === roleId) {
                         return;
                     }
                     return ghostBookshelf.model('Role').findOne({id: roleId});
-                }).then((roleToAssign) => {
+                }).then(function then(roleToAssign) {
                     if (roleToAssign && roleToAssign.get('name') === 'Owner') {
                         return Promise.reject(
                             new common.errors.ValidationError({
@@ -499,12 +461,9 @@ User = ghostBookshelf.Model.extend({
                         // assign all other roles
                         return user.roles().updatePivot({role_id: roleId});
                     }
-                }).then(() => {
+                }).then(function then() {
                     options.status = 'all';
                     return self.findOne({id: user.id}, options);
-                }).then((model) => {
-                    model._changed = user._changed;
-                    return model;
                 });
             });
         });
@@ -596,23 +555,6 @@ User = ghostBookshelf.Model.extend({
             });
     },
 
-    destroy: function destroy(unfilteredOptions) {
-        const options = this.filterOptions(unfilteredOptions, 'destroy', {extraAllowedProperties: ['id']});
-
-        const destroyUser = () => {
-            return ghostBookshelf.Model.destroy.call(this, options);
-        };
-
-        if (!options.transacting) {
-            return ghostBookshelf.transaction((transacting) => {
-                options.transacting = transacting;
-                return destroyUser();
-            });
-        }
-
-        return destroyUser();
-    },
-
     /**
      * We override the owner!
      * Owner already has a slug -> force setting a new one by setting slug to null
@@ -668,7 +610,7 @@ User = ghostBookshelf.Model.extend({
         });
     },
 
-    permissible: function permissible(userModelOrId, action, context, unsafeAttrs, loadedPermissions, hasUserPermission, hasAppPermission, hasApiKeyPermission) {
+    permissible: function permissible(userModelOrId, action, context, unsafeAttrs, loadedPermissions, hasUserPermission, hasAppPermission) {
         var self = this,
             userModel = userModelOrId,
             origArgs;
@@ -758,7 +700,7 @@ User = ghostBookshelf.Model.extend({
                 .then((owner) => {
                     // CASE: owner can assign role to any user
                     if (context.user === owner.id) {
-                        if (hasUserPermission && hasApiKeyPermission && hasAppPermission) {
+                        if (hasUserPermission && hasAppPermission) {
                             return Promise.resolve();
                         }
 
@@ -780,7 +722,7 @@ User = ghostBookshelf.Model.extend({
                         // e.g. admin can assign admin role to a user, but not owner
                         return permissions.canThis(context).assign.role(role)
                             .then(() => {
-                                if (hasUserPermission && hasApiKeyPermission && hasAppPermission) {
+                                if (hasUserPermission && hasAppPermission) {
                                     return Promise.resolve();
                                 }
 
@@ -790,7 +732,7 @@ User = ghostBookshelf.Model.extend({
                             });
                     }
 
-                    if (hasUserPermission && hasApiKeyPermission && hasAppPermission) {
+                    if (hasUserPermission && hasAppPermission) {
                         return Promise.resolve();
                     }
 
@@ -800,7 +742,7 @@ User = ghostBookshelf.Model.extend({
                 });
         }
 
-        if (hasUserPermission && hasApiKeyPermission && hasAppPermission) {
+        if (hasUserPermission && hasAppPermission) {
             return Promise.resolve();
         }
 
@@ -912,20 +854,20 @@ User = ghostBookshelf.Model.extend({
     },
 
     transferOwnership: function transferOwnership(object, unfilteredOptions) {
-        const options = ghostBookshelf.Model.filterOptions(unfilteredOptions, 'transferOwnership');
-        let ownerRole;
-        let contextUser;
+        var options = ghostBookshelf.Model.filterOptions(unfilteredOptions, 'transferOwnership'),
+            ownerRole,
+            contextUser;
 
         return Promise.join(
             ghostBookshelf.model('Role').findOne({name: 'Owner'}),
             User.findOne({id: options.context.user}, {withRelated: ['roles']})
         )
-            .then((results) => {
+            .then(function then(results) {
                 ownerRole = results[0];
                 contextUser = results[1];
 
                 // check if user has the owner role
-                const currentRoles = contextUser.toJSON(options).roles;
+                var currentRoles = contextUser.toJSON(options).roles;
                 if (!_.some(currentRoles, {id: ownerRole.id})) {
                     return Promise.reject(new common.errors.NoPermissionError({
                         message: common.i18n.t('errors.models.user.onlyOwnerCanTransferOwnerRole')
@@ -935,7 +877,7 @@ User = ghostBookshelf.Model.extend({
                 return Promise.join(ghostBookshelf.model('Role').findOne({name: 'Administrator'}),
                     User.findOne({id: object.id}, {withRelated: ['roles']}));
             })
-            .then((results) => {
+            .then(function then(results) {
                 const adminRole = results[0];
                 const user = results[1];
 
@@ -945,17 +887,11 @@ User = ghostBookshelf.Model.extend({
                     }));
                 }
 
-                const {roles: currentRoles, status} = user.toJSON(options);
+                const currentRoles = user.toJSON(options).roles;
 
                 if (!_.some(currentRoles, {id: adminRole.id})) {
                     return Promise.reject(new common.errors.ValidationError({
                         message: common.i18n.t('errors.models.user.onlyAdmCanBeAssignedOwnerRole')
-                    }));
-                }
-
-                if (status !== 'active') {
-                    return Promise.reject(new common.errors.ValidationError({
-                        message: common.i18n.t('errors.models.user.onlyActiveAdmCanBeAssignedOwnerRole')
                     }));
                 }
 
@@ -964,7 +900,7 @@ User = ghostBookshelf.Model.extend({
                     user.roles().updatePivot({role_id: ownerRole.id}),
                     user.id);
             })
-            .then((results) => {
+            .then(function then(results) {
                 return Users.forge()
                     .query('whereIn', 'id', [contextUser.id, results[2]])
                     .fetch({withRelated: ['roles']});
@@ -987,7 +923,6 @@ User = ghostBookshelf.Model.extend({
             var userWithEmail = users.find(function findUser(user) {
                 return user.get('email').toLowerCase() === email.toLowerCase();
             });
-
             if (userWithEmail) {
                 return userWithEmail;
             }

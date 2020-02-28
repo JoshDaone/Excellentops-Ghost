@@ -14,7 +14,6 @@ const shared = require('../../../shared');
  * Authentication for public endpoints
  */
 module.exports.authenticatePublic = [
-    shared.middlewares.brute.contentApiKey,
     auth.authenticate.authenticateContentApi,
     auth.authorize.authorizeContentApi,
     cors(),

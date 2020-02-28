@@ -1,105 +1,58 @@
 const debug = require('ghost-ignition').debug('utils:image-size');
 const sizeOf = require('image-size');
-const probeSizeOf = require('probe-image-size');
 const url = require('url');
 const Promise = require('bluebird');
 const _ = require('lodash');
 const request = require('../request');
-const urlUtils = require('../../lib/url-utils');
+const urlService = require('../../services/url');
 const common = require('../common');
 const config = require('../../config');
 const storage = require('../../adapters/storage');
 const storageUtils = require('../../adapters/storage/utils');
-const validator = require('../../data/validation').validator;
+let getImageSizeFromUrl;
+let getImageSizeFromStoragePath;
+let getImageSizeFromPath;
 
-// these are formats supported by image-size but not probe-image-size
-const FETCH_ONLY_FORMATS = [
-    'cur', 'icns', 'ico', 'dds'
-];
+/**
+ * @description processes the Buffer result of an image file
+ * @param {Object} options
+ * @returns {Object} dimensions
+ */
+function fetchDimensionsFromBuffer(options) {
+    const buffer = options.buffer;
+    const imagePath = options.imagePath;
+    const imageObject = {};
+    let dimensions;
 
-const REQUEST_OPTIONS = {
-    // we need the user-agent, otherwise some https request may fail (e.g. cloudfare)
-    headers: {
-        'User-Agent': 'Mozilla/5.0 Safari/537.36'
-    },
-    timeout: config.get('times:getImageSizeTimeoutInMS') || 10000,
-    retry: 0, // for `got`, used with image-size
-    encoding: null
-};
+    imageObject.url = imagePath;
 
-// processes the Buffer result of an image file using image-size
-// returns promise which resolves dimensions
-function _imageSizeFromBuffer(buffer) {
-    return new Promise((resolve, reject) => {
-        try {
-            const dimensions = sizeOf(buffer);
+    try {
+        // Using the Buffer rather than an URL requires to use sizeOf synchronously.
+        // See https://github.com/image-size/image-size#asynchronous
+        dimensions = sizeOf(buffer);
 
-            // CASE: `.ico` files might have multiple images and therefore multiple sizes.
-            // We return the largest size found (image-size default is the first size found)
-            if (dimensions.images) {
-                dimensions.width = _.maxBy(dimensions.images, img => img.width).width;
-                dimensions.height = _.maxBy(dimensions.images, img => img.height).height;
-            }
-
-            return resolve(dimensions);
-        } catch (err) {
-            return reject(err);
+        // CASE: `.ico` files might have multiple images and therefore multiple sizes.
+        // We return the largest size found (image-size default is the first size found)
+        if (dimensions.images) {
+            dimensions.width = _.maxBy(dimensions.images, (w) => {
+                return w.width;
+            }).width;
+            dimensions.height = _.maxBy(dimensions.images, (h) => {
+                return h.height;
+            }).height;
         }
-    });
-}
 
-// use probe-image-size to download enough of an image to get it's dimensions
-// returns promise which resolves dimensions
-function _probeImageSizeFromUrl(url) {
-    // probe-image-size uses `request` npm module which doesn't have our `got`
-    // override with custom URL validation so it needs duplicating here
-    if (_.isEmpty(url) || !validator.isURL(url)) {
+        imageObject.width = dimensions.width;
+        imageObject.height = dimensions.height;
+
+        return Promise.resolve(imageObject);
+    } catch (err) {
         return Promise.reject(new common.errors.InternalServerError({
-            message: 'URL empty or invalid.',
-            code: 'URL_MISSING_INVALID',
-            context: url
+            code: 'IMAGE_SIZE',
+            err: err,
+            context: imagePath
         }));
     }
-
-    return probeSizeOf(url, REQUEST_OPTIONS);
-}
-
-// download full image then use image-size to get it's dimensions
-// returns promise which resolves dimensions
-function _fetchImageSizeFromUrl(url) {
-    return request(url, REQUEST_OPTIONS).then((response) => {
-        return _imageSizeFromBuffer(response.body);
-    });
-}
-
-// wrapper for appropriate probe/fetch method for getting image dimensions from a URL
-// returns promise which resolves dimensions
-function _imageSizeFromUrl(imageUrl) {
-    return new Promise((resolve, reject) => {
-        let parsedUrl;
-
-        try {
-            parsedUrl = url.parse(imageUrl);
-        } catch (err) {
-            reject(err);
-        }
-
-        // check if we got an url without any protocol
-        if (!parsedUrl.protocol) {
-            // CASE: our gravatar URLs start with '//' and we need to add 'http:'
-            // to make the request work
-            imageUrl = 'http:' + imageUrl;
-        }
-
-        const extensionMatch = imageUrl.match(/(?:\.)([a-zA-Z]{3,4})(\?|$)/) || [];
-        const extension = (extensionMatch[1] || '').toLowerCase();
-
-        if (FETCH_ONLY_FORMATS.includes(extension)) {
-            return resolve(_fetchImageSizeFromUrl(imageUrl));
-        } else {
-            return resolve(_probeImageSizeFromUrl(imageUrl));
-        }
-    });
 }
 
 // Supported formats of https://github.com/image-size/image-size:
@@ -125,7 +78,11 @@ function _imageSizeFromUrl(imageUrl) {
  * @param {String} imagePath as URL
  * @returns {Promise<Object>} imageObject or error
  */
-const getImageSizeFromUrl = (imagePath) => {
+getImageSizeFromUrl = (imagePath) => {
+    let requestOptions;
+    let parsedUrl;
+    let timeout = config.get('times:getImageSizeTimeoutInMS') || 10000;
+
     if (storageUtils.isLocalImage(imagePath)) {
         // don't make a request for a locally stored image
         return getImageSizeFromStoragePath(imagePath);
@@ -133,19 +90,39 @@ const getImageSizeFromUrl = (imagePath) => {
 
     // CASE: pre 1.0 users were able to use an asset path for their blog logo
     if (imagePath.match(/^\/assets/)) {
-        imagePath = urlUtils.urlJoin(urlUtils.urlFor('home', true), urlUtils.getSubdir(), '/', imagePath);
+        imagePath = urlService.utils.urlJoin(urlService.utils.urlFor('home', true), urlService.utils.getSubdir(), '/', imagePath);
+    }
+
+    parsedUrl = url.parse(imagePath);
+
+    // check if we got an url without any protocol
+    if (!parsedUrl.protocol) {
+        // CASE: our gravatar URLs start with '//' and we need to add 'http:'
+        // to make the request work
+        imagePath = 'http:' + imagePath;
     }
 
     debug('requested imagePath:', imagePath);
+    requestOptions = {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 Safari/537.36'
+        },
+        timeout: timeout,
+        encoding: null
+    };
 
-    return _imageSizeFromUrl(imagePath).then((dimensions) => {
+    return request(
+        imagePath,
+        requestOptions
+    ).then((response) => {
         debug('Image fetched (URL):', imagePath);
 
-        return {
-            url: imagePath,
-            width: dimensions.width,
-            height: dimensions.height
-        };
+        return fetchDimensionsFromBuffer({
+            buffer: response.body,
+            // we need to return the URL that's accessible for network requests as this imagePath
+            // value will be used as the URL for structured data
+            imagePath: parsedUrl.href
+        });
     }).catch({code: 'URL_MISSING_INVALID'}, (err) => {
         return Promise.reject(new common.errors.InternalServerError({
             message: err.message,
@@ -199,10 +176,10 @@ const getImageSizeFromUrl = (imagePath) => {
  * @param {String} imagePath
  * @returns {object} imageObject or error
  */
-const getImageSizeFromStoragePath = (imagePath) => {
+getImageSizeFromStoragePath = (imagePath) => {
     let filePath;
 
-    imagePath = urlUtils.urlFor('image', {image: imagePath}, true);
+    imagePath = urlService.utils.urlFor('image', {image: imagePath}, true);
 
     // get the storage readable filePath
     filePath = storageUtils.getLocalFileStoragePath(imagePath);
@@ -211,16 +188,14 @@ const getImageSizeFromStoragePath = (imagePath) => {
         .read({path: filePath})
         .then((buf) => {
             debug('Image fetched (storage):', filePath);
-            return _imageSizeFromBuffer(buf);
-        })
-        .then((dimensions) => {
-            return {
-                url: imagePath,
-                width: dimensions.width,
-                height: dimensions.height
-            };
-        })
-        .catch({code: 'ENOENT'}, (err) => {
+
+            return fetchDimensionsFromBuffer({
+                buffer: buf,
+                // we need to return the URL that's accessible for network requests as this imagePath
+                // value will be used as the URL for structured data
+                imagePath: imagePath
+            });
+        }).catch({code: 'ENOENT'}, (err) => {
             return Promise.reject(new common.errors.NotFoundError({
                 message: err.message,
                 code: 'IMAGE_SIZE_STORAGE',
@@ -258,7 +233,7 @@ const getImageSizeFromStoragePath = (imagePath) => {
  * @returns {Promise<Object>} getImageDimensions
  * @description Takes a file path and returns width and height.
  */
-const getImageSizeFromPath = (path) => {
+getImageSizeFromPath = (path) => {
     return new Promise(function getSize(resolve, reject) {
         let dimensions;
 

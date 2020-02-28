@@ -2,7 +2,7 @@
 // RESTful API for browsing the configuration
 const Promise = require('bluebird'),
     {isPlainObject} = require('lodash'),
-    urlUtils = require('../../lib/url-utils'),
+    urlService = require('../../services/url'),
     models = require('../../models'),
     config = require('../../config'),
     labs = require('../../services/labs'),
@@ -29,7 +29,7 @@ function getBaseConfig() {
     return {
         useGravatar: !config.isPrivacyDisabled('useGravatar'),
         publicAPI: labs.isSet('publicAPI'),
-        blogUrl: urlUtils.urlFor('home', true),
+        blogUrl: urlService.utils.urlFor('home', true),
         blogTitle: settingsCache.get('title'),
         clientExtensions: config.get('clientExtensions'),
         enableDeveloperExperiments: config.get('enableDeveloperExperiments')
