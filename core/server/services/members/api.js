@@ -25,11 +25,22 @@ function updateMember(member, newData) {
     });
 }
 
-function getMember(member) {
-    return models.Member.findOne(member, {
-        require: true
-    }).then((member) => {
-        return member.toJSON();
+function getMember(data, options) {
+    options = options || {};
+    return models.Member.findOne(data, options).then((model) => {
+        if (!model) {
+            return null;
+        }
+        return model.toJSON(options);
+    });
+}
+
+function listMembers(options) {
+    return models.Member.findPage(options).then((models) => {
+        return {
+            members: models.data.map(model => model.toJSON(options)),
+            meta: models.meta
+        };
     });
 }
 
@@ -66,6 +77,8 @@ const issuer = siteOrigin;
 const ssoOrigin = siteOrigin;
 let mailer;
 
+const membersConfig = config.get('members');
+
 function sendEmail(member, {token}) {
     if (!(mailer instanceof mail.GhostMailer)) {
         mailer = new mail.GhostMailer();
@@ -94,16 +107,20 @@ function sendEmail(member, {token}) {
 }
 
 const api = MembersApi({
-    config: {
+    authConfig: {
         issuer,
         publicKey,
         privateKey,
         sessionSecret,
         ssoOrigin
     },
+    paymentConfig: {
+        processors: membersConfig.paymentProcessors
+    },
     validateAudience,
     createMember,
     getMember,
+    listMembers,
     validateMember,
     updateMember,
     sendEmail

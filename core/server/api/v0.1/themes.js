@@ -136,18 +136,12 @@ themes = {
                     themeUtils.activate(loadedTheme, checkedTheme);
                 }
 
+                common.events.emit('theme.uploaded');
+
                 // @TODO: unify the name across gscan and Ghost!
                 return themeUtils.toJSON(zip.shortName, checkedTheme);
             })
             .finally(() => {
-                // @TODO we should probably do this as part of saving the theme
-                // remove zip upload from multer
-                // happens in background
-                fs.remove(zip.path)
-                    .catch((err) => {
-                        common.logging.error(new common.errors.GhostError({err: err}));
-                    });
-
                 // @TODO we should probably do this as part of saving the theme
                 // remove extracted dir from gscan
                 // happens in background
