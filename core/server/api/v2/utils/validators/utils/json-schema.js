@@ -1,4 +1,3 @@
-const _ = require('lodash');
 const Ajv = require('ajv');
 const stripKeyword = require('./strip-keyword');
 const common = require('../../../../../lib/common');
@@ -15,17 +14,8 @@ const validate = (schema, definitions, data) => {
     validation(data);
 
     if (validation.errors) {
-        let key;
-        const dataPath = _.get(validation, 'errors[0].dataPath');
-
-        if (dataPath) {
-            key = dataPath.split('.').pop();
-        }
-
         return Promise.reject(new common.errors.ValidationError({
-            message: common.i18n.t('notices.data.validation.index.schemaValidationFailed', {
-                key: key
-            }),
+            message: common.i18n.t('notices.data.validation.index.validationFailed'),
             errorDetails: validation.errors
         }));
     }
