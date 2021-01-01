@@ -356,8 +356,7 @@ figure blockquote p {
     border-bottom: 1px solid #e5eff5;
 }
 
-.post-content a,
-.post-content-sans-serif a {
+.post-content a {
     color: #08121A;
     text-decoration: underline;
 }
