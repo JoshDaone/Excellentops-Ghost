@@ -92,10 +92,6 @@ const ApiKey = ghostBookshelf.Model.extend({
         return this.belongsTo('Integration');
     },
 
-    user() {
-        return this.belongsTo('User');
-    },
-
     format(attrs) {
         return omit(attrs, 'role');
     },
