@@ -49,22 +49,5 @@ module.exports = {
         frame.response = {
             users: models.map(model => model.toJSON(frame.options))
         };
-    },
-
-    readToken(model, apiConfig, frame) {
-        debug('readToken');
-
-        frame.response = {
-            apiKey: model.toJSON(frame.options)
-        };
-    },
-
-    regenerateToken(model, apiConfig, frame) {
-        debug('regenerateToken');
-
-        frame.response = {
-            apiKey: model.toJSON(frame.options)
-        };
     }
-
 };
