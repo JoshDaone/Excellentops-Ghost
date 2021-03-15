@@ -1,7 +1,7 @@
 const path = require('path');
 const logging = require('../../../../shared/logging');
 const express = require('../../../../shared/express');
-const jobsService = require('../../../services/jobs');
+const jobService = require('../../../services/jobs');
 
 /** A bunch of helper routes for testing purposes */
 module.exports = function testRoutes() {
@@ -28,17 +28,14 @@ module.exports = function testRoutes() {
 
         const timeout = req.params.timeout * 1000;
         logging.info('Create Slow Job with timeout of', timeout);
-        jobsService.addJob({
-            job: () => {
-                return new Promise((resolve) => {
-                    logging.info('Start Slow Job');
-                    setTimeout(() => {
-                        logging.info('End Slow Job', timeout);
-                        resolve();
-                    }, timeout);
-                });
-            },
-            offloaded: false
+        jobService.addJob(() => {
+            return new Promise((resolve) => {
+                logging.info('Start Slow Job');
+                setTimeout(() => {
+                    logging.info('End Slow Job', timeout);
+                    resolve();
+                }, timeout);
+            });
         });
 
         res.sendStatus(202);
@@ -50,28 +47,22 @@ module.exports = function testRoutes() {
         }
 
         const schedule = req.params.schedule;
-        const jobName = req.params.name || `generic-${new Date().getTime()}`;
         logging.info('Achedule a Job with schedule of:', schedule, req.params.name);
 
         if (req.params.name) {
-            const jobPath = path.resolve(__dirname, 'jobs', `${req.params.name}.js`);
-            jobsService.addJob({
-                at: schedule,
-                job: jobPath,
-                name: jobName
-            });
+            const jobPath = path.resolve(__dirname, 'jobs', req.params.name);
+            jobService.scheduleJob(schedule, jobPath);
         } else {
-            jobsService.addJob({
-                at: schedule,
-                job: () => {
-                    return new Promise((resolve) => {
-                        setTimeout(() => {
-                            resolve();
-                        }, 20 * 1000);
-                    });
-                },
-                name: jobName
-            });
+            jobService.scheduleJob(schedule, () => {
+                return new Promise((resolve) => {
+                    logging.info('Start scheduled Job');
+
+                    setTimeout(() => {
+                        logging.info('End scheduled Job run', schedule);
+                        resolve();
+                    }, 20 * 1000);
+                });
+            }, {});
         }
 
         res.sendStatus(202);
