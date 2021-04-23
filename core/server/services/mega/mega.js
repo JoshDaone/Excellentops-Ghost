@@ -7,10 +7,11 @@ const ObjectID = require('bson-objectid');
 const errors = require('@tryghost/errors');
 const {events, i18n} = require('../../lib/common');
 const logging = require('../../../shared/logging');
+const config = require('../../../shared/config');
 const settingsCache = require('../settings/cache');
 const membersService = require('../members');
 const bulkEmailService = require('../bulk-email');
-const jobsService = require('../jobs');
+const jobService = require('../jobs');
 const db = require('../../data/db');
 const models = require('../../models');
 const postEmailSerializer = require('./post-email-serializer');
@@ -70,7 +71,7 @@ const sendTestEmail = async (postModel, toEmails) => {
     }));
 
     // enable tracking for previews to match real-world behaviour
-    emailData.track_opens = !!settingsCache.get('email_track_opens');
+    emailData.track_opens = config.get('enableDeveloperExperiments');
 
     const response = await bulkEmailService.send(emailData, recipients);
 
@@ -139,7 +140,7 @@ const addEmail = async (postModel, options) => {
             html: emailData.html,
             plaintext: emailData.plaintext,
             submitted_at: moment().toDate(),
-            track_opens: !!settingsCache.get('email_track_opens'),
+            track_opens: config.get('enableDeveloperExperiments'),
             recipient_filter: emailRecipientFilter
         }, knexOptions);
     } else {
@@ -204,7 +205,6 @@ async function handleUnsubscribeRequest(req) {
         return memberModel.toJSON();
     } catch (err) {
         throw new errors.InternalServerError({
-            err,
             message: 'Failed to unsubscribe member'
         });
     }
@@ -221,15 +221,7 @@ async function pendingEmailHandler(emailModel, options) {
         return;
     }
 
-    // make sure recurring background analytics jobs are running once we have emails
-    const emailAnalyticsJobs = require('../email-analytics/jobs');
-    emailAnalyticsJobs.scheduleRecurringJobs();
-
-    return jobsService.addJob({
-        job: sendEmailJob,
-        data: {emailModel},
-        offloaded: false
-    });
+    return jobService.addJob(sendEmailJob, {emailModel});
 }
 
 async function sendEmailJob({emailModel, options}) {
