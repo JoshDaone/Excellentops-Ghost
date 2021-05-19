@@ -11,8 +11,7 @@ const groupTypeMapping = {
     private: 'private',
     portal: 'portal',
     email: 'bulk_email',
-    newsletter: 'newsletter',
-    firstpromoter: 'firstpromoter'
+    newsletter: 'newsletter'
 };
 
 const mapGroupToType = (group) => {
