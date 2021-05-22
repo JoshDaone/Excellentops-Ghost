@@ -6,7 +6,7 @@ const forPost = (attrs, frame) => {
         const memberHasAccess = membersService.contentGating.checkPostAccess(attrs, frame.original.context.member);
 
         if (!memberHasAccess) {
-            ['plaintext', 'html', 'excerpt'].forEach((field) => {
+            ['plaintext', 'html'].forEach((field) => {
                 if (attrs[field] !== undefined) {
                     attrs[field] = '';
                 }
