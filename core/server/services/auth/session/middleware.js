@@ -20,11 +20,7 @@ function SessionMiddleware({sessionService}) {
     async function authenticate(req, res, next) {
         try {
             const user = await sessionService.getUserForSession(req, res);
-            if (user) {
-                // Do not nullify `req.user` as it might have been already set
-                // in a previous middleware (authorize middleware).
-                req.user = user;
-            }
+            req.user = user;
             next();
         } catch (err) {
             next(err);

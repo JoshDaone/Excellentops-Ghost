@@ -1,4 +1,4 @@
-const {i18n} = require('../../services/proxy');
+const {i18n} = require('../../../server/lib/common');
 const urlUtils = require('../../../shared/url-utils');
 const logging = require('../../../shared/logging');
 const errors = require('@tryghost/errors');

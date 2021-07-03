@@ -86,7 +86,7 @@ class GhostServer {
             self.httpServer.on('error', function (error) {
                 let ghostError;
 
-                if (error.code === 'EADDRINUSE') {
+                if (error.errno === 'EADDRINUSE') {
                     ghostError = new errors.GhostError({
                         message: i18n.t('errors.httpServer.addressInUse.error'),
                         context: i18n.t('errors.httpServer.addressInUse.context', {port: config.get('server').port}),
@@ -124,23 +124,7 @@ class GhostServer {
                     });
 
                     // Output job queue length every 5 seconds
-                    setInterval(() => {
-                        logging.warn(`${jobService.queue.length()} jobs in the queue. Idle: ${jobService.queue.idle()}`);
-
-                        const runningScheduledjobs = Object.keys(jobService.bree.workers);
-                        if (Object.keys(jobService.bree.workers).length) {
-                            logging.warn(`${Object.keys(jobService.bree.workers).length} jobs running: ${runningScheduledjobs}`);
-                        }
-
-                        const scheduledJobs = Object.keys(jobService.bree.intervals);
-                        if (Object.keys(jobService.bree.intervals).length) {
-                            logging.warn(`${Object.keys(jobService.bree.intervals).length} scheduled jobs: ${scheduledJobs}`);
-                        }
-
-                        if (runningScheduledjobs.length === 0 && scheduledJobs.length === 0) {
-                            logging.warn('No scheduled or running jobs');
-                        }
-                    }, 5000);
+                    setInterval(() => logging.warn(`${jobService.queue.length()} jobs in the queue. Idle: ${jobService.queue.idle()}`), 5000);
                 }
 
                 return GhostServer.announceServerReadiness()

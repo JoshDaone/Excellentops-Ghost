@@ -69,18 +69,6 @@ function initialiseServices() {
     });
 }
 
-async function initializeRecurringJobs() {
-    // we don't want to kick off scheduled/recurring jobs that will interfere with tests
-    if (process.env.NODE_ENV.match(/^testing/)) {
-        return;
-    }
-
-    if (config.get('backgroundJobs:emailAnalytics')) {
-        const emailAnalyticsJobs = require('./services/email-analytics/jobs');
-        await emailAnalyticsJobs.scheduleRecurringJobs();
-    }
-}
-
 /**
  * - initialise models
  * - initialise i18n
@@ -136,9 +124,6 @@ const minimalRequiredSetupToStartGhost = (dbState) => {
 
                 return initialiseServices()
                     .then(() => {
-                        initializeRecurringJobs();
-                    })
-                    .then(() => {
                         return ghostServer;
                     });
             }
@@ -160,9 +145,6 @@ const minimalRequiredSetupToStartGhost = (dbState) => {
                         config.set('maintenance:enabled', false);
                         logging.info('Blog is out of maintenance mode.');
                         return GhostServer.announceServerReadiness();
-                    })
-                    .then(() => {
-                        initializeRecurringJobs();
                     })
                     .catch((err) => {
                         return GhostServer.announceServerReadiness(err)
