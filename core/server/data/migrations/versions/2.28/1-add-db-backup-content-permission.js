@@ -4,6 +4,6 @@ const {
 
 module.exports = addPermission({
     name: 'Backup database',
-    action: 'backupContent',
+    action: 'backupContect',
     object: 'db'
 });
