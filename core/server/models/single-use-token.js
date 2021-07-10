@@ -1,6 +1,5 @@
 const ghostBookshelf = require('./base');
 const crypto = require('crypto');
-const logging = require('../../shared/logging');
 
 const SingleUseToken = ghostBookshelf.Model.extend({
     tableName: 'tokens',
@@ -17,23 +16,19 @@ const SingleUseToken = ghostBookshelf.Model.extend({
     }
 }, {
     async findOne(data, unfilteredOptions = {}) {
+        if (!unfilteredOptions.transacting) {
+            return ghostBookshelf.transaction((transacting) => {
+                return this.findOne(data, Object.assign({transacting}, unfilteredOptions));
+            });
+        }
         const model = await ghostBookshelf.Model.findOne.call(this, data, unfilteredOptions);
 
         if (model) {
-            setTimeout(async () => {
-                try {
-                    await this.destroy(Object.assign({
-                        destroyBy: {
-                            id: model.id
-                        }
-                    }, {
-                        ...unfilteredOptions,
-                        transacting: null
-                    }));
-                } catch (err) {
-                    logging.error(err);
+            await this.destroy(Object.assign({
+                destroyBy: {
+                    id: model.id
                 }
-            }, 10000);
+            }, unfilteredOptions));
         }
 
         return model;
