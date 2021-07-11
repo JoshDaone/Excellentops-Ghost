@@ -145,16 +145,17 @@ dd {
 blockquote {
     margin: 2em 0;
     padding: 0 25px 0 25px;
-    border-left: ${templateSettings.accentColor || '#15212A'} 2px solid;
-    font-size: 17px;
-    font-weight: 500;
-    line-height: 1.6em;
+    border-left: #15212A 2px solid;
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.75em;
     letter-spacing: -0.2px;
 }
 
 blockquote p {
     margin: 0.8em 0;
-    font-size: 1em;
+    font-size: 1.2em;
+    font-weight: 300;
 }
 
 blockquote small {
@@ -355,8 +356,7 @@ figure blockquote p {
     border-bottom: 1px solid #e5eff5;
 }
 
-.post-content a,
-.post-content-sans-serif a {
+.post-content a {
     color: #08121A;
     text-decoration: underline;
 }
@@ -391,8 +391,7 @@ figure blockquote p {
 }
 
 .kg-bookmark-content {
-    display: inline-block;
-    width: 100%;
+    flex-grow: 1;
     padding: 20px;
 }
 
@@ -450,17 +449,17 @@ figure blockquote p {
     line-height: 1.5em;
 }
 
+.kg-bookmark-author:after {
+    content: "•";
+    margin: 0 6px;
+}
+
 .kg-bookmark-publisher {
     overflow: hidden;
     max-width: 240px;
     line-height: 1.5em;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.kg-bookmark-publisher:before {
-    content: "•";
-    margin: 0 6px;
 }
 
 .kg-gallery-container {

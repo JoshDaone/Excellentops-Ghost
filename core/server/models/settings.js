@@ -90,6 +90,12 @@ Settings = ghostBookshelf.Model.extend({
 
     tableName: 'settings',
 
+    defaults: function defaults() {
+        return {
+            type: 'core'
+        };
+    },
+
     emitChange: function emitChange(event, options) {
         const eventToTrigger = 'settings' + '.' + event;
         ghostBookshelf.Model.prototype.emitChange.bind(this)(this, eventToTrigger, options);
