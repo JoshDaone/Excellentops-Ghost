@@ -258,14 +258,6 @@
             },
             "type": "string"
         },
-        "members_free_signup_redirect": {
-            "defaultValue": "/",
-            "type": "string"
-        },
-        "members_paid_signup_redirect": {
-            "defaultValue": "/",
-            "type": "string"
-        },
         "stripe_product_name": {
             "defaultValue": "Ghost Subscription",
             "type": "string"
@@ -353,14 +345,6 @@
         "mailgun_base_url": {
             "defaultValue": null,
             "type": "string"
-        },
-        "email_track_opens": {
-            "defaultValue": "true",
-            "validations": {
-                "isEmpty": false,
-                "isIn": [["true", "false"]]
-            },
-            "type": "boolean"
         }
     },
     "amp": {
@@ -372,24 +356,6 @@
             "type": "boolean"
         },
         "amp_gtag_id": {
-            "defaultValue": null,
-            "type": "string"
-        }
-    },
-    "firstpromoter": {
-        "firstpromoter": {
-            "defaultValue": "false",
-            "validations": {
-                "isIn": [
-                    [
-                        "true",
-                        "false"
-                    ]
-                ]
-            },
-            "type": "boolean"
-        },
-        "firstpromoter_id": {
             "defaultValue": null,
             "type": "string"
         }
