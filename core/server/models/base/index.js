@@ -172,15 +172,13 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
 
     // Ghost option handling - get permitted attributes from server/data/schema.js, where the DB schema is defined
     permittedAttributes: function permittedAttributes() {
-        return _.keys(schema.tables[this.tableName])
-            .filter(key => key.indexOf('@@') === -1);
+        return _.keys(schema.tables[this.tableName]);
     },
 
     // Ghost ordering handling, allows to order by permitted attributes by default and can be overriden on specific model level
     orderAttributes: function orderAttributes() {
         return Object.keys(schema.tables[this.tableName])
-            .map(key => `${this.tableName}.${key}`)
-            .filter(key => key.indexOf('@@') === -1);
+            .map(key => `${this.tableName}.${key}`);
     },
 
     // When loading an instance, subclasses can specify default to fetch
@@ -356,7 +354,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
                  *
                  * Happens after validation to ensure we don't set fields which are not nullable on db level.
                  */
-                _.each(Object.keys(schema.tables[this.tableName]).filter(key => key.indexOf('@@') === -1), (columnKey) => {
+                _.each(Object.keys(schema.tables[this.tableName]), (columnKey) => {
                     if (model.get(columnKey) === undefined) {
                         model.set(columnKey, null);
                     }
@@ -939,10 +937,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
         }
 
         if (options.order) {
-            const {order, orderRaw, eagerLoad} = itemCollection.parseOrderOption(options.order, options.withRelated);
-            options.orderRaw = orderRaw;
-            options.order = order;
-            options.eagerLoad = eagerLoad;
+            options.order = itemCollection.parseOrderOption(options.order, options.withRelated);
         } else if (options.autoOrder) {
             options.orderRaw = options.autoOrder;
         } else if (this.orderDefaultRaw) {

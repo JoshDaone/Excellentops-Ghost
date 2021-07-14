@@ -24,14 +24,12 @@ module.exports = {
                 }));
             }
 
+            // CASE: omit core settings unless internal request
             if (!frame.options.context.internal) {
-                // CASE: omit core settings unless internal request
                 settings = _.filter(settings, (setting) => {
                     const isCore = setting.group === 'core';
                     return !isCore;
                 });
-                // CASE: omit secret settings unless internal request
-                settings = settings.map(settingsService.hideValueIfSecret);
             }
 
             return settings;
@@ -69,8 +67,6 @@ module.exports = {
                     message: i18n.t('errors.api.settings.accessCoreSettingFromExtReq')
                 }));
             }
-
-            setting = settingsService.hideValueIfSecret(setting);
 
             return {
                 [frame.options.key]: setting
@@ -112,10 +108,7 @@ module.exports = {
             }
 
             frame.data.settings = _.reject(frame.data.settings, (setting) => {
-                return setting.key === 'type'
-                    // Remove obfuscated settings
-                    || (setting.value === settingsService.obfuscatedSetting
-                        && settingsService.isSecretSetting(setting));
+                return setting.key === 'type';
             });
 
             const errors = [];
