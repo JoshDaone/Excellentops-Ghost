@@ -20,6 +20,7 @@ const loadMemberSession = async function (req, res, next) {
         res.locals.member = req.member;
         next();
     } catch (err) {
+        logging.warn(err.message);
         Object.assign(req, {member: null});
         next();
     }
@@ -31,6 +32,7 @@ const getIdentityToken = async function (req, res) {
         res.writeHead(200);
         res.end(token);
     } catch (err) {
+        logging.warn(err.message);
         res.writeHead(err.statusCode);
         res.end(err.message);
     }
@@ -42,6 +44,7 @@ const deleteSession = async function (req, res) {
         res.writeHead(204);
         res.end();
     } catch (err) {
+        logging.warn(err.message);
         res.writeHead(err.statusCode);
         res.end(err.message);
     }
@@ -56,6 +59,7 @@ const getMemberData = async function (req, res) {
             res.json(null);
         }
     } catch (err) {
+        logging.warn(err.message);
         res.writeHead(err.statusCode);
         res.end(err.message);
     }
@@ -77,6 +81,7 @@ const updateMemberData = async function (req, res) {
             res.json(null);
         }
     } catch (err) {
+        logging.warn(err.message);
         res.writeHead(err.statusCode);
         res.end(err.message);
     }
@@ -85,7 +90,6 @@ const updateMemberData = async function (req, res) {
 const getMemberSiteData = async function (req, res) {
     const isStripeConfigured = membersService.config.isStripeConnected();
     const domain = urlUtils.urlFor('home', true).match(new RegExp('^https?://([^/:?#]+)(?:[/:?#]|$)', 'i'));
-    const firstpromoterId = settingsCache.get('firstpromoter') ? settingsCache.get('firstpromoter_id') : '';
     const blogDomain = domain && domain[1];
     let supportAddress = settingsCache.get('members_support_address') || 'noreply';
     if (!supportAddress.includes('@')) {
@@ -108,7 +112,6 @@ const getMemberSiteData = async function (req, res) {
         portal_button_icon: settingsCache.get('portal_button_icon'),
         portal_button_signup_text: settingsCache.get('portal_button_signup_text'),
         portal_button_style: settingsCache.get('portal_button_style'),
-        firstpromoter_id: firstpromoterId,
         members_support_address: supportAddress
     };
 
@@ -129,40 +132,20 @@ const createSessionFromMagicLink = async function (req, res, next) {
         }
     });
 
+    // We need to include the subdirectory,
+    // members is already removed from the path by express because it's a mount path
+    let redirectPath = `${urlUtils.getSubdir()}${req.path}`;
+
     try {
-        const member = await membersService.ssr.exchangeTokenForSession(req, res);
-        const subscriptions = member && member.stripe && member.stripe.subscriptions || [];
+        await membersService.ssr.exchangeTokenForSession(req, res);
 
-        const action = req.query.action || req.query['portal-action'];
-
-        if (action === 'signup') {
-            let customRedirect = '';
-            if (subscriptions.find(sub => ['active', 'trialing'].includes(sub.status))) {
-                customRedirect = settingsCache.get('members_paid_signup_redirect') || '';
-            } else {
-                customRedirect = settingsCache.get('members_free_signup_redirect') || '';
-            }
-
-            if (customRedirect && customRedirect !== '/') {
-                const baseUrl = urlUtils.getSiteUrl();
-                const ensureEndsWith = (string, endsWith) => (string.endsWith(endsWith) ? string : string + endsWith);
-                const removeLeadingSlash = string => string.replace(/^\//, '');
-
-                const redirectUrl = new URL(removeLeadingSlash(ensureEndsWith(customRedirect, '/')), ensureEndsWith(baseUrl, '/'));
-
-                return res.redirect(redirectUrl.href);
-            }
-        }
-
-        // Do a standard 302 redirect to the homepage, with success=true
+        // Do a standard 302 redirect, with success=true
         searchParams.set('success', true);
-        res.redirect(`${urlUtils.getSubdir()}/?${searchParams.toString()}`);
     } catch (err) {
         logging.warn(err.message);
-
-        // Do a standard 302 redirect to the homepage, with success=false
         searchParams.set('success', false);
-        res.redirect(`${urlUtils.getSubdir()}/?${searchParams.toString()}`);
+    } finally {
+        res.redirect(`${redirectPath}?${searchParams.toString()}`);
     }
 };
 
